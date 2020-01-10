@@ -1,0 +1,55 @@
+<section>
+   <title>MX4J Frequently Asked Questions</title>
+   <qandaentry>
+      <question>
+         <para>
+            How it is possible to change the default log level
+            of the MX4J implementation to understand what is going on ?
+         </para>
+      </question>
+      <answer>
+         <para>
+            Just set the system property 'mx4j.log.priority' to one of these values (from less verbose to more verbose):
+            <itemizedlist>
+               <listitem>fatal</listitem>
+               <listitem>error</listitem>
+               <listitem>warn</listitem>
+               <listitem>info</listitem>
+               <listitem>debug</listitem>
+               <listitem>trace</listitem>
+            </itemizedlist>
+            like this example command line:
+         </para>
+         <para>
+            > java -Dmx4j.log.priority=debug -classpath . my.package.Application
+         </para>
+         <para>
+            See the MX4J documentation about logging for more information.
+         </para>
+      </answer>
+   </qandaentry>
+
+   <qandaentry>
+      <question>
+         <para>
+            The MLet file format is not enough flexible for my needs.
+            Is there a more powerful configuration file format, maybe in XML, by means of which
+            will be possible to load and configure the MBeans of a system ?
+         </para>
+      </question>
+      <answer>
+         <para>
+            MX4J, from version 2.0, supports a configuration file format in XML, by which it is
+            possible to specify constructor arguments to MBeans, call methods on object and MBeans,
+            register and unregister MBeans and so on.
+            <sbr/>
+            Think of this configuration file format as an XML way to invoke Java methods and JMX
+            attributes or operations.
+         </para>
+         <para>
+            The class that allows this is <classname>mx4j.tools.config.ConfigurationLoader</classname>.
+            Refer to the MX4J tools documentation for details about usage of this class.
+         </para>
+      </answer>
+   </qandaentry>
+</section>

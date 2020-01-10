@@ -1,0 +1,1791 @@
+<section>
+   <title>What is JSR 160 ?</title>
+   <section>
+      <title>Introduction</title>
+      <para>
+         The Java Management Extension (JMX) API is defined and under maintenance release of the Java Specification
+         Request (JSR) number 3.
+         <sbr/>
+         JMX defines the API for management of Java applications, and those API are local to the application: remote
+         clients that would like to connect to a JMX-enabled remote application and manage or monitor it using JMX
+         could not do it in a standard way.
+         <sbr/>
+         The MX4J project, the JMX reference implementation itself, and other JMX implementations provide custom
+         connectors, mostly RMI-based and HTTP-based, but those are not interoperable.
+         <sbr/>
+      </para>
+      <para>
+         To fill this gap,
+         <ulink url="http://www.jcp.org/en/jsr/detail?id=160">JSR 160</ulink> extends JSR 3 by providing a standard
+         API to connect to remote JMX-enabled applications.
+         <sbr/>
+         Currently, JSR 160 has defined a mandatory connector based on RMI (that supports both RMI/JRMP and RMI/IIOP),
+         and an optional one based on sockets and Java serialization (JMXMP).
+      </para>
+      <para>
+         JSR 160 thus provides a standard way to connect to remote JMX-enabled applications using RMI; it is possible
+         to use MX4J JSR 160 implementation on client side, and have a JMX Remote Reference Implementation on server
+         side, or viceversa.
+         This allows the creation of Management Consoles based on Swing, for example, that will be able to interoperate
+         no matter which JMX implementation is used.
+      </para>
+   </section>
+   <section>
+      <title>MX4J's JSR 160 implementation</title>
+      <para>
+         MX4J implements JSR 160. This means that MX4J ships the standard JSR 160 API, located in package
+         <classname>javax.management.remote</classname>, and the mandatory providers defined by the specification,
+         namely the
+         <emphasis>rmi</emphasis> and
+         <emphasis>iiop</emphasis> providers, located in package
+         <classname>javax.management.remote.rmi</classname>.
+         <sbr/>
+         MX4J does not implement yet the optional
+         <emphasis>jmxmp</emphasis> provider defined by the JSR 160 specification.
+         <sbr/>
+         MX4J provides other four providers, not specified by the JSR 160 specification. This means that they will work
+         only if MX4J runs at both client and server side. These four providers are the
+         <emphasis>soap</emphasis>,
+         <emphasis>local</emphasis>,
+         <emphasis>hessian</emphasis> and
+         <emphasis>burlap</emphasis> providers.
+      </para>
+      <para>
+         To sum up, MX4J allows you to specify JMXServiceURLs (see next section) of the following kind:
+         <itemizedlist>
+            <listitem>service:jmx:rmi://host</listitem>
+            <listitem>service:jmx:iiop://host</listitem>
+            <listitem>service:jmx:soap://host</listitem>
+            <listitem>service:jmx:local://host</listitem>
+            <listitem>service:jmx:hessian://host</listitem>
+            <listitem>service:jmx:burlap://host</listitem>
+         </itemizedlist>
+      </para>
+   </section>
+</section>
+
+<section>
+   <title>How to use JSR 160</title>
+   <section>
+      <title>Introduction</title>
+      <para>
+         Using JSR 160 is very simple; the API is standard, so it does not matter if you use MX4J's JSR 160
+         implementation or Sun's JSR 160 reference implementation.
+         <sbr/>
+         You can checkout the JSR 160 examples shipped with MX4J to understand how to use the JSR 160 API.
+      </para>
+   </section>
+   <section>
+      <title>JMXServiceURLs</title>
+      <para>
+         JSR 160 connector servers are identified by a JMXServiceURL, represented by the class
+         <classname>javax.management.remote.JMXServiceURL</classname>.
+         <sbr/>
+         A JMXServiceURL is a string of the form:
+      </para>
+      <para>
+         service:jmx:
+         <emphasis>&lt;protocol&gt;</emphasis>://[[[
+         <emphasis>&lt;host&gt;</emphasis>]:
+         <emphasis>&lt;port&gt;]</emphasis>/
+         <emphasis>&lt;path&gt;</emphasis>]
+      </para>
+      <para>
+         where
+         <emphasis>protocol</emphasis> is a short string that represent the protocol such as "rmi", "iiop", "jmxmp"
+         or "soap", while
+         <emphasis>host</emphasis>,
+         <emphasis>port</emphasis> and
+         <emphasis>path</emphasis> are optional.
+      </para>
+      <para>
+         A JMXServiceURL can be seen as the "address" of a JMXConnectorServer, and it is the mean by which
+         a JMXConnector can connect to a JMXConnectorServer.
+      </para>
+      <para>
+         However, a JMXServiceURL is not sufficient to express the many possibile configurations of a
+         JMXConnectorServer (for example, it would be difficult to use a JMXServiceURL to specify - for the
+         RMIConnectorServer - the RMIClientSocketFactory and the RMIServerSocketFactory).
+         <sbr/>
+         For this reason JMXConnectorServers and JMXConnector make use of
+         <classname>java.util.Map</classname>s to
+         specify environment properties that a JMXConnectorServer or a JMXConnector may use to setup properly.
+      </para>
+   </section>
+   <section>
+      <title>Creating a JMXConnectorServer</title>
+      <para>
+         A JMXConnectorServer is attached to an MBeanServer.
+         <sbr/>
+         This can be achieved by explicitely passing the MBeanServer to the JMXConnectorServer at the moment of
+         creation, or by registering the JMXConnectorServer - an MBean itself - inside the target MBeanServer.
+      </para>
+      <para>
+         Once a JMXConnectorServer is attached to an MBeanServer, it is not yet ready to accept incoming calls
+         from clients: it must be
+         <emphasis>started</emphasis>.
+         <sbr/>
+         After a JMXConnectorServer has been started successfully, it is ready to accept incoming calls from clients.
+         <sbr/>
+         Symmetrically, a JMXConnectorServer must be
+         <emphasis>stopped</emphasis> in order to stop accepting incoming
+         calls from clients. After a JMXConnectorServer has been stopped, it cannot be restarted, and should be
+         tossed away.
+      </para>
+      <para>
+         The preferred way to create a JMXConnectorServer is by using the
+         <classname>javax.management.remote.JMXConnectorServerFactory</classname> class:
+      </para>
+      <para>
+         <example>
+            <title>Creating and starting a standalone JMXConnectorServer</title>
+            <programlisting>
+               <![CDATA[
+// The address of the connector server
+JMXServiceURL address = new JMXServiceURL("service:jmx:rmi://host");
+
+// The environment map, null in this case
+Map environment = null;
+
+// The MBeanServer to which the JMXConnectorServer will be attached to
+MBeanServer server = MBeanServerFactory.createMBeanServer();
+
+// Create the JMXCconnectorServer
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(address, environment, server);
+
+// Start the JMXConnectorServer
+cntorServer.start();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         The example above creates a JMXConnectorServer attached to a freshly created MBeanServer.
+         <sbr/>
+         The JMXConnectorServer - itself an MBean - is however not registered in the MBeanServer.
+      </para>
+      <para>
+         The following code creates a JMXConnectorServer and registers it in a MBeanServer.
+      </para>
+      <para>
+         <example>
+            <title>Creating and starting an MBean JMXConnectorServer</title>
+            <programlisting>
+               <![CDATA[
+// The address of the connector
+JMXServiceURL address = new JMXServiceURL("service:jmx:rmi://host");
+
+// The environment map, null in this case
+Map environment = null;
+
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(address, environment, null);
+
+// The MBeanServer to which the JMXConnectorServer will be registered in
+MBeanServer server = MBeanServerFactory.createMBeanServer();
+
+// Register the JMXConnectorServer in the MBeanServer
+ObjectName cntorServerName = ObjectName.getInstance("connectors:protocol=rmi");
+server.registerMBean(cntorServer, cntorServerName);
+
+// Start the JMXConnectorServer
+cntorServer.start();
+
+// An alternative way to start the JMXConnectorServer via the MBeanServer
+server.invoke(cntorServerName, "start", null, null);
+
+// Yet another way to start the JMXConnectorServer via the MBeanServer
+Object proxy = MBeanServerInvocationHandler.newProxyInstance(server, cntorServerName, JMXConnectorServerMBean.class, true);
+JMXConnectorServerMBean cntorServerMBean = (JMXConnectorServerMBean)proxy;
+cntorServerMBean.start();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Once a JMXConnectorServer is connected to an MBeanServer and once it has been started, it is possible to
+         create a JMXConnector on a client host and connect it to the JMXConnectorServer.
+         <sbr/>
+         We already saw that the mean used by a JMXConnector to connect to a JMXConnectorServer is a JMXServiceURL.
+      </para>
+   </section>
+   <section>
+      <title>Creating a JMXConnector</title>
+      <para>
+         If a JMXConnectorServer is the server-side component that allows to interact with a MBeanServer,
+         a JMXConnector is the client-side component that allows client code to contact a remote MBeanServer.
+         <sbr/>
+         A JMXConnector handles the details of registering notification listeners and receiving notifications from the
+         remote MBeanServer, as well as providing a way to authenticate to the JMXConnectorServer, and eventually
+         execute operations on behalf of a given
+         <classname>javax.security.auth.Subject</classname>.
+         <sbr/>
+         Finally the JMXConnector allows client code to obtain an implementation of the
+         <classname>javax.management.MBeanServerConnection</classname> interface that allows to interact with the
+         remote MBeanServer as if it is local.
+      </para>
+      <para>
+         The preferred way to create a JMXConnector is to use the
+         <classname>javax.management.remote.JMXConnectorFactory</classname> class:
+      </para>
+      <para>
+         <example>
+            <title>Connecting a JMXConnector</title>
+            <programlisting>
+               <![CDATA[
+// The address of the connector server
+JMXServiceURL address = ...;
+
+// The environment map, null in this case
+Map environment = null;
+
+// Create the JMXCconnectorServer
+JMXConnector cntor = JMXConnectorFactory.connect(address, environment);
+
+// Obtain a "stub" for the remote MBeanServer
+MBeanServerConnection mbsc = cntor.getMBeanServerConnection();
+
+// Call the remote MBeanServer
+String domain = mbsc.getDefaultDomain();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         JMXConnectors can be instantiated, but connected at a later time.
+         <sbr/>
+         Below is a code snippet that shows how to instantiate a JMXConnector and then connect it
+         to the JMXConnectorServer.
+         <sbr/>
+         Note the use of two different environment Maps: one is used to specify creation parameters, the other
+         to specify connection parameters.
+      </para>
+      <para>
+         <example>
+            <title>Creating and connecting a JMXConnector</title>
+            <programlisting>
+               <![CDATA[
+// The address of the connector server
+JMXServiceURL address = ...;
+
+// The creation environment map, null in this case
+Map creationEnvironment = null;
+
+// Create the JMXCconnectorServer
+JMXConnector cntor = JMXConnectorFactory.newJMXConnector(address, creationEnvironment);
+
+// The connection environment map, null in this case
+// May contain - for example - user's credentials
+Map connectionEnvironment = null;
+
+// Connect
+cntor.connect(connectionEnvironment);
+
+// Obtain a "stub" for the remote MBeanServer
+MBeanServerConnection mbsc = cntor.getMBeanServerConnection();
+
+// Call the remote MBeanServer
+String domain = mbsc.getDefaultDomain();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+   </section>
+   <section>
+      <title>Remote Notifications</title>
+      <para>
+         JSR 160 connectors are able to receive notifications emitted by a remote MBean.
+         <sbr/>
+         The details of the mechanism of how remote notifications are delivered depends on the protocol
+         used by the connector; however, few general principles are explained below.
+      </para>
+      <para>
+         To receive notifications, a client must register a listener by means of the
+         <classname>javax.management.MBeanServerConnection.addNotificationListener(...)</classname> method.
+         <sbr/>
+         There are two overloaded versions of this method: one that takes an ObjectName as listener, and one that
+         takes a NotificationListener as listener.
+      </para>
+      <para>
+         In the first case, the listener is remote (an MBean in the remote MBeanServer) and thus both the filter
+         and the handback object are sent over the wire to the server (and of course both must be serializable).
+      </para>
+      <para>
+         The more interesting case is the second, where the listener is local to the client code.
+         <sbr/>
+         In this case the listener that receives notifications emitted by a remote MBean always
+         remains local to the client code that registered it. The NotificationListener object is never sent across
+         the wire.
+         <sbr/>
+         NotificationListener objects are usually implemented with anonymous inner classes
+         (that most of the times are not serializables), and client code should not make any particular attention
+         on how to implement NotificationListeners that receive remote Notifications: anonymous inner classes are
+         a good choice.
+      </para>
+      <para>
+         On the other end, if the remote MBean sends custom subclasses of the Notification class, it must ensure that
+         the custom Notification objects are
+         <emphasis>serializable</emphasis>.
+         <sbr/>
+         The meaning of
+         <emphasis>serializable</emphasis> depends on the protocol used; in case of RMI, it is the
+         usual meaning of "Java serializable" (that is, it can be written to a
+         <classname>java.io.ObjectOutputStream</classname>).
+      </para>
+      <para>
+         NotificationFilters may or may not be sent over the wire, depending on the protocol used by the JMXConnector.
+         <sbr/>
+         It is a good choice to use the standard JMX NotificationFilters such as
+         <classname>javax.management.NotificationFilterSupport</classname>,
+         <classname>javax.management.AttributeChangeNotificationFilter</classname> and
+         <classname>javax.management.relation.MBeanServerNotificationFilter</classname> to perform filtering of
+         Notifications: these classes are serializable, and known to the server side.
+         <sbr/>
+         If you want to write your custom NotificationFilter, write it in such a way that will work no matter if it is
+         run on client side or on server side, and be sure its class is known to the server side (for more
+         details about server side classloading, refer to the JSR 160 specification).
+      </para>
+      <para>
+         The handback object always remains on client side.
+      </para>
+      <para>
+         In the MX4J implementation, notifications are requested by the client to the server, and use a notification
+         buffer as explained in the JSR 160 specification.
+         <sbr/>
+         Since it's the client that initiates the notification request, the mechanism can be seen as a polling
+         mechanism. However, if the server does not have notifications to send to the client, it does not return
+         an empty result, but instead holds the call for a configurable timeout until a notification is emitted
+         or the timeout elapses.
+         <sbr/>
+         This allows to reduce the network traffic (since there is no continuous polling from the client to the
+         server) and still have a fast reactivity to notification emitted by the server.
+         <sbr/>
+         Refer to the javadocs of the
+         <ulink url="/docs/api/mx4j/remote/RemoteNotificationClientHandler.html">
+            <classname>mx4j.remote.RemoteNotificationClientHandler</classname>
+         </ulink> and of the
+         <ulink url="/docs/api/mx4j/remote/RemoteNotificationServerHandler.html">
+            <classname>mx4j.remote.RemoteNotificationServerHandler</classname>
+         </ulink> for further details.
+      </para>
+      <para>
+         Take also a look at the examples bundled with the MX4J distribution for code snippets on registering
+         listeners to remote MBeans.
+         <sbr/>
+         Below, a quick example of how to register a listener to a remote MBean:
+      </para>
+      <para>
+         <example>
+            <title>Registering a NotificationListener to a remote MBean</title>
+            <programlisting>
+               <![CDATA[
+// The address of the connector server
+JMXServiceURL address = ...;
+
+// The JMXConnector
+JMXConnector connector = JMXConnectorFactory.connect(address);
+
+// The MBeanServerConnection "stub"
+MBeanServerConnection mbsc = connector.getMBeanServerConnection();
+
+// The MBeanServerDelegate emits notifications about registration/unregistration of MBeans
+ObjectName delegateName = ObjectName.getInstance("JMImplementation:type=MBeanServerDelegate");
+
+NotificationListener listener = new NotificationListener()
+{
+   public void handleNotification(Notification notification, Object handback)
+   {
+      // Do something
+   }
+};
+
+mbsc.addNotificationListener(delegateName, listener, null, null);
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+   </section>
+</section>
+<section>
+   <title>JSR 160 Security</title>
+   <section>
+      <title>Requiring user authentication to connect to a JMXConnectorServer</title>
+      <para>
+         JSR 160 provides a pluggable authentication mechanism based on the
+         <classname>javax.management.remote.JMXAuthenticator</classname> interface.
+         <sbr/>
+         The JMXAuthenticator interface has only one method that takes credentials from the client and returns a
+         <classname>javax.security.auth.Subject</classname>:
+         <sbr/>
+         <sbr/>
+         <funcdef>
+            <function>public Subject authenticate(Object credentials) throws SecurityException</function>
+         </funcdef>
+         <sbr/>
+      </para>
+      <para>
+         An implementation of that interface may read username / password pairs from a file, and compare them
+         with the supplied credentials (for example a String[2] where String[0] contains the username and String[1]
+         contains the password).
+      </para>
+      <para>
+         MX4J provides a default implementation of the JMXAuthenticator interface, namely the
+         <classname>mx4j.tools.remote.PasswordAuthenticator</classname> class. Refer to the PasswordAuthenticator
+         <ulink url="/docs/api/mx4j/remote/PasswordAuthenticator.html">javadoc</ulink> for details.
+         <sbr/>
+         It is possible to specify a file or a resource containing username/password pairs (where
+         passwords can be in clear text or obfuscated via a digest algorithm) to the PasswordAuthenticator, that
+         will then check correctness of the credentials passed by the client against this file or resource.
+      </para>
+      <para>
+         It is worth noting that JMXConnectorServers that offer a strong security (an example of a JMXConnectorServer
+         that offers strong security is the - optional -
+         <classname>javax.management.remote.jmxmp.JMXMPConnectorServer</classname>,
+         whose security is based on
+         <ulink url="http://www.jcp.org/en/jsr/detail?id=28">SASL</ulink>) may choose not to
+         base their security system on JMXAuthenticator.
+      </para>
+      <para>
+         The JMXAuthenticator implementation must be provided to the JMXConnectorServer via the environment map:
+      </para>
+      <para>
+         <example>
+            <title>Using JMXAuthenticator in a JMXConnectorServer</title>
+            <programlisting>
+               <![CDATA[
+// The address of the connector server
+JMXServiceURL address = ...;
+
+// The JMXAuthenticator implementation
+JMXAuthenticator authenticator = ...;
+
+// The environment map
+Map environment = new HashMap();
+environment.put(JMXConnectorServer.AUTHENTICATOR, authenticator);
+
+// The MBeanServer to which the JMXConnectorServer will be attached to
+MBeanServer server = MBeanServerFactory.createMBeanServer();
+
+// Create the JMXCconnectorServer
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(address, environment, server);
+
+// Start the JMXConnectorServer
+cntorServer.start();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Once the JMXConnectorServer is setup correctly, it is possible to connect only by providing correct credentials
+         from a JMXConnector.
+         <sbr/>
+         The credentials must be serializable because they are provided by the JMXConnector and will be sent to the
+         JMXConnectorServer to authenticate a Subject.
+         <sbr/>
+         If the credentials provided are not correct, a SecurityException is raised.
+      </para>
+      <para>
+         <example>
+            <title>Passing credentials using a JMXConnector</title>
+            <programlisting>
+               <![CDATA[
+// The address of the connector server
+JMXServiceURL address = ...;
+
+// Create the JMXCconnectorServer
+JMXConnector cntor = JMXConnectorFactory.newJMXConnector(address, null);
+
+// The credentials
+Object credentials = ...;
+
+// The connection environment map
+Map environment = new HashMap();
+environment.put(JMXConnector.CREDENTIALS, credentials);
+
+// Connect and invoke an operation on the remote MBeanServer
+try
+{
+   cntor.connect(environment);
+}
+catch (SecurityException x)
+{
+   // Uh-oh ! Bad credentials !
+   throw x;
+}
+
+// Obtain a stub for the remote MBeanServer
+MBeanServerConnection mbsc = cntor.getMBeanServerConnection();
+
+// Call the remote MBeanServer
+ObjectName delegate = ObjectName.getInstance("JMImplementation:type=MBeanServerDelegate");
+String id = mbsc.getAttribute(delegate, "MBeanServerId");
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Once correct credentials are provided the server side, the JMXAuthenticator can authenticate a Subject.
+         <sbr/>
+         When you invoke operations on the MBeanServerConnection object obtained from the JMXConnector, the invocation
+         end up on the server side, and over there the operation will be executed on behalf of the authenticated Subject.
+      </para>
+      <para>
+         If a SecurityManager is in place, you can specify different permissions for different authenticated subjects,
+         fine tuning the security policy as you want.
+         <sbr/>
+         You can for example grant all permissions to an "admin" principal, while granting only read access to MBean
+         attributes to a "guest" principal.
+      </para>
+      <para>
+         If a SecurityManager is not in place, then using a JMXAuthenticator only allows you to deny access to non
+         authenticated users: a simple way to restrict the access to the JMXConnectorServer.
+      </para>
+   </section>
+   <section>
+      <title>Running under SecurityManager and Subject Delegation</title>
+      <para>
+         Running a JMXConnectorServer under a SecurityManager allows to fine tune access to it from remote clients.
+      </para>
+      <para>
+         If you just want to restrict access to the JMXConnectorServer to authenticated users, but allow an
+         authenticated user to perform any operation on the JMXConnectorServer and its underlying MBeanServer,
+         then it is enough to provide a JMXAuthenticator while creating the JMXConnectorServer,
+         as explained in the section above.
+      </para>
+      <para>
+         If instead, you want to be able to grant different permissions to different users, then you have to
+         run the JMXConnectorServer under a SecurityManager and grant different permissions to different users.
+         <sbr/>
+         For example, you may want the "admin" user to be able to perform any operation on the remote MBeanServer,
+         and the "guest" user to be able to perform only read operations, and not write operations.
+      </para>
+      <para>
+         To show how to achieve this fine tuning, we will refer to example classes bundled with the MX4J distribution,
+         namely
+         <classname>mx4j.examples.remote.security.Client</classname> and
+         <classname>mx4j.examples.remote.security.Server</classname>, and show how to setup the policy files in JDK 1.4
+         and JDK 1.3.
+         <sbr/>
+         By default it will shown the sequence of operations for JDK 1.4, and differences with JDK 1.3 will be
+         highlighted.
+      </para>
+      <para>
+         We will assume that the JMX implementation (mx4j.jar), the JMX Remote implementation (mx4j-remote.jar)
+         and the MX4J examples (mx4j-examples.jar) are present in a directory called $WORK/lib, and that the
+         example is started from the $WORK directory.
+         <sbr/>
+         For JDK 1.3 you will also need jaas.jar in the $WORK/lib directory.
+      </para>
+      <para>
+         As first step, let's take a look at
+         <classname>mx4j.examples.remote.security.Server</classname>.
+         <sbr/>
+         It first creates a "users.properties" file with the "admin" and "guest" users under $WORK.
+         This step is of course omitted in a real environment, where the "users.properties" file is provided
+         externally.
+         <sbr/>
+         Then it starts the NamingService and the JMXConnectorServer over RMI/JRMP, specifying a JMXAuthenticator
+         that reads user names and passwords from the "users.properties" file.
+      </para>
+      <para>
+         Let's create now a policy file under $WORK, server.policy:
+      </para>
+      <para>
+         <example>
+            <title>The server.policy file</title>
+            <programlisting>
+               <![CDATA[
+grant codebase "file:${user.dir}/lib/mx4j-remote.jar"
+{
+   permission java.security.AllPermission;
+};
+grant codebase "file:${user.dir}/lib/mx4j.jar"
+{
+   permission java.security.AllPermission;
+};
+grant codebase "file:${user.dir}/lib/mx4j-tools.jar"
+{
+   permission java.security.AllPermission;
+};
+
+/* Uncomment for JDK 1.3
+grant codebase "file:${user.dir}/lib/jaas.jar"
+{
+   permission java.security.AllPermission;
+};
+*/
+
+grant codebase "file:${user.dir}/lib/mx4j-examples.jar"
+{
+   permission java.security.AllPermission;
+};
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Notice how we grant AllPermission to the MX4J jars that implement JMX and JMX Remote,
+         and to the MX4J Tools jar (and to JAAS jar for JDK 1.3).
+         <sbr/>
+         You can consider those jars as libraries, and you trust that the MX4J implementation, as well as the JAAS
+         implementation, won't harm your system.
+      </para>
+      <para>
+         Different is the motivation behind granting AllPermission to the MX4J Examples jar, which is the one that
+         containes
+         <classname>mx4j.examples.remote.security.Server</classname>.
+         <sbr/>
+         For this example we grant AllPermission because we trust the Server class not to perform any security
+         sensitive operation beyond starting the JMXConnectorServer and reading the "users.properties" file,
+         but you may want to restrict the set of operations performed by the classes that start the
+         JMXConnectorServer.
+         <sbr/>
+         With the above server.policy file, you can successfully start the
+         <classname>mx4j.examples.remote.security.Server</classname> class, in this way:
+      </para>
+      <para>
+         <example>
+            <title>Starting the secured server</title>
+            <programlisting>
+               <![CDATA[
+$WORK>java -Djava.security.manager
+           -Djava.security.policy==server.policy
+           -Djava.security.auth.policy=jaas.server.policy    --> Only for JDK 1.3
+           -classpath lib/mx4j-examples.jar;                 \
+                      lib/mx4j.jar;                          \
+                      lib/mx4j-remote.jar                    \
+                      lib/jaas.jar                           --> Only for JDK 1.3
+           mx4j.examples.remote.security.Server
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Note the double equals sign '=' after the property "java.security.policy": see the documentation guide
+         about policy files for the JDK for further information about the meaning of this double equals sign.
+      </para>
+      <para>
+         It is time now to grant permissions for the operations a remote client that is connecting
+         may want to do.
+         <sbr/>
+         Since we specified a JMXAuthenticator, only authenticated users can connect to the JMXConnectorServer.
+         <sbr/>
+         Furthermore, since we run under a SecurityManager, authenticated users may only perform the operations
+         granted to the corrispondent principal in the policy file.
+      </para>
+      <para>
+         For JDK 1.3, these permissions must be specified in a separate file, named here "jaas.policy.file",
+         referenced by the "java.security.auth.policy" system property at startup time (see above).
+         <sbr/>
+         For JDK 1.4, these permissions can be added to the "server.policy" file.
+      </para>
+      <para>
+         <example>
+            <title>The principal-specific permissions</title>
+            <programlisting>
+               <![CDATA[
+grant
+{
+   // Required by MX4J implementation
+   permission javax.security.auth.AuthPermission "doAsPrivileged";
+
+   // Required to all clients to connect to the server
+   permission java.net.SocketPermission "localhost:1024-", "listen,resolve";
+   permission java.net.SocketPermission "*", "accept,resolve";
+};
+
+grant principal javax.management.remote.JMXPrincipal "admin"
+{
+   permission java.security.AllPermission;
+};
+
+grant principal javax.management.remote.JMXPrincipal "guest"
+{
+   permission javax.management.MBeanPermission "*", "queryNames";
+   permission javax.management.remote.SubjectDelegationPermission "javax.management.remote.JMXPrincipal.*";
+};
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         First of all, note that there is no specification of the codebase.
+         <sbr/>
+         It is not possible to specify the codebase for permissions you want to grant to a JSR 160 connector
+         server, you have to omit it.
+      </para>
+      <para>
+         Second, note that there are three grant blocks: one that specifies permissions common to all principals,
+         one that specifies permissions for the "admin" principal, and one that specifies permissions for the
+         "guest" principal.
+      </para>
+      <para>
+         The common block allows anyone to connect to the server side, as specified by the two SocketPermissions.
+      </para>
+      <para>
+         The "admin" principal has AllPermission, while the "guest" principal can only call the
+         <classname>javax.management.MBeanServerConnection.queryNames()</classname> method.
+      </para>
+      <para>
+         In the same exact way, you can specify many principal blocks, one per principal, with a different set
+         of permission for each one; this allows to fine tune the permissions granted to each principal
+         that connects to the server side.
+      </para>
+      <para>
+         Lastly, note the SubjectDelegationPermission. This permission is needed when you have, on client, a
+         JAAS Subject and you want to perform, on server side, operations on behalf of that Subject.
+         <sbr/>
+         For example, it is possible that on a client there are many users that want to interact with the
+         server side, and that all users have been granted the same set of permissions.
+         <sbr/>
+         In this case is more efficient to establish only one connection with the server side, with an
+         authenticated user (in the example above, "guest"), and then use that connection with many
+         delegate users, by using
+         <classname>javax.management.remote.JMXConnector.getMBeanServerConnection(Subject delegate)</classname>.
+         <sbr/>
+         In the example above, the authenticated principal "guest" allows any delegate principal (of class
+         <classname>javax.management.remote.JMXPrincipal</classname>) to perform
+         operations in its behalf, since it grants a SubjectDelegationPermission with a name of
+         "javax.management.remote.JMXPrincipal.*" (refer to the JMX Remote javadocs for explanation of the
+         syntax of SubjectDelegationPermission).
+         <sbr/>
+      </para>
+   </section>
+</section>
+
+<section>
+   <title>Advanced JSR 160</title>
+   <section>
+      <title>Intercepting calls between the JSR 160 JMXConnectorServer and the MBeanServer</title>
+      <para>
+         JSR 160 offers a standard way of intercepting calls between the JMXConnectorServer
+         and the target MBeanServer.
+         <sbr/>
+         Such interception can be useful for logging, for granting access in a dynamic way (for example
+         based on the value of the arguments for a certain call to an MBean - this cannot be
+         achieved via the standard security policy files), for caching of values, and whatever else
+         you may find useful.
+      </para>
+      <para>
+         In the examples bundled with the MX4J distribution, there is an example of how to setup
+         such an interception, and here we will show in brief how to do it. Refer to the example's
+         javadocs for further information.
+      </para>
+      <para>
+         First of all, you need to implement the interceptor. In the past, these interceptor were all
+         implementation-dependent, but JSR 160 standardized the interface to achieve this:
+         <classname>javax.management.remote.MBeanServerForwarder</classname>.
+         Below you can find a simple (incomplete) example of how to track the Subject of the current
+         invocation.
+      </para>
+      <para>
+         <example>
+            <title>Simple subject interceptor skeleton</title>
+            <programlisting>
+               <![CDATA[
+public class SubjectTrackingMBeanServer implements MBeanServerForwarder
+{
+   private MBeanServer server;
+
+   public synchronized MBeanServer getMBeanServer()
+   {
+      return server;
+   }
+
+   public synchronized void setMBeanServer(MBeanServer server) throws IllegalArgumentException
+   {
+      if (server == null) throw new IllegalArgumentException("Cannot forward to a null MBeanServer");
+      this.server = server;
+   }
+
+   private void trackSubject()
+   {
+      Subject subject = Subject.getSubject(AccessController.getContext());
+      System.out.println("Subject = " + subject);
+   }
+
+   public void addNotificationListener(ObjectName observed, NotificationListener listener, NotificationFilter filter, Object handback)
+           throws InstanceNotFoundException
+   {
+      trackSubject();
+      getMBeanServer().addNotificationListener(observed, listener, filter, handback);
+   }
+
+   ...
+
+}
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         It is very simple to add this interceptors to a JMXConnectorServer, to intercept calls
+         directed to the target MBeanServer. It is important to do this before the JMXConnectorServer
+         is started, because if done afterwards it will have no effect (interception will not take place).
+      </para>
+      <para>
+         <example>
+            <title>Setting up the interception on the JMXConnectorServer</title>
+            <programlisting>
+               <![CDATA[
+MBeanServer server = ...;
+File passwords = ...;
+
+Map environment = new HashMap();
+JMXAuthenticator authenticator = new PasswordAuthenticator(passwords);
+environment.put(JMXConnectorServer.AUTHENTICATOR, authenticator);
+
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(url, environment, server);
+
+// Here we setup the interception
+SubjectTrackingMBeanServer interceptor = new SubjectTrackingMBeanServer();
+cntorServer.setMBeanServerForwarder(interceptor);
+
+// Start the connector server
+cntorServer.start();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+   </section>
+</section>
+
+<section>
+   <title>Standard JSR 160 JMXConnectors and JMXConnectorServers</title>
+   <section>
+      <title>Overview of RMIConnector and RMIConnectorServer</title>
+      <para>
+         JSR 160 compliance requires implementation of a JMXConnector and JMXConnectorServer that
+         use Java's Remote Method Invocation (RMI) to communicate.
+         <sbr/>
+         The RMI connector and connector server are meant to work both over JRMP (Java Remote
+         Method Protocol, RMI's native protocol) and over IIOP (Internet Inter ORB Protocol, CORBA's
+         native protocol), and MX4J implements both fully.
+      </para>
+      <para>
+         Java's RMI works so that the RMI client needs to have a
+         <emphasis>stub</emphasis> object.
+         A normal java method call on the stub is routed to the network and ends up on the RMI server
+         making possible to perform remote calls as if they were standard local calls.
+         <sbr/>
+         The stub takes care the details of invoking the server side such as arguments and return
+         value marshalling, exception throwing and so on.
+         <sbr/>
+         The stub class is normally present in the client's
+         classpath (since the stub is part of the JSR 160 classes), but the stub object is normally
+         downloaded from a naming server such as the
+         <emphasis>rmiregistry</emphasis>.
+         The RMI client only needs to know the naming path under which the stub object has been bound to
+         by the RMI server.
+      </para>
+   </section>
+   <section>
+      <title>Connecting to the RMIConnectorServer</title>
+      <para>
+         A JSR 160 RMIConnector needs to be able to retrieve the stub object in order to contact
+         a remote JSR 160 RMIConnectorServer.
+         <sbr/>
+         JSR 160 gives two possibilities to retrieve the RMI stub object to be able to contact the
+         RMIConnectorServer.
+      </para>
+      <para>
+         The first way to contact an RMIConnectorServer is make the stub object part of
+         the RMIConnectorServer's address, represented by a JMXServiceURL.
+         The JSR 160 specification refers to this possibility as the "encoded form".
+         <sbr/>
+         In case of JRMP, the stub is serialized and its bytes are Base64 encoded and attached to
+         the JMXServiceURL, so that passing the JMXServiceURL to clients, they have all information
+         needed to contact the server side (no naming server is needed).
+         <sbr/>
+         The JMXServiceURL path, in this case, starts with
+         <emphasis>/stub/</emphasis>.
+         <sbr/>
+         In case of IIOP, the IOR is attached to the JMXServiceURL (and again no naming server is
+         needed).
+         <sbr/>
+         The JMXServiceURL path, in this case, starts with
+         <emphasis>/ior/</emphasis>.
+         <sbr/>
+         Simply passing an encoded form JMXServiceURL to a JMXConnector is enough to allow it
+         to contact the corrispondent JMXConnectorServer: the JMXConnector will take care of
+         decoding the stub.
+      </para>
+      <para>
+         <example>
+            <title>Examples of encoded form JMXServiceURLs</title>
+            <programlisting>
+               <![CDATA[
+// JRMP encoded form
+service:jmx:rmi://localhost/stub/rO0ABXNyAC5qYXZheC5tYW5hZ2VtZW50LnJlbW90ZS5ybWkuUk1JU2VydmVySW1wbF9TdHViAAAAAAAAAAICAAB4cgAaamF2YS5ybWkuc2VydmVyLlJlbW90ZVN0dWLp/tzJi+FlGgIAAHhyABxqYXZhLnJtaS5zZXJ2ZXIuUmVtb3RlT2JqZWN002G0kQxhMx4DAAB4cHc5AAtVbmljYXN0UmVmMgAADjE2LjE5Mi4xMjAuMTI5AAANcQAAAAAAAAAIAOgIQgAAAPlXjcJugAEAeA==
+
+// IIOP encoded form
+service:jmx:iiop://localhost/ior/IOR:000000000000003b524d493a6a617661782e6d616e6167656d656e742e72656d6f74652e726d692e524d495365727665723a303030303030303030303030303030300000000000010000000000000068000102000000000f31362e3139322e3132302e31323900000d93000000000019afabcb0000000002578f08b80000000800000000000000000a0000000000000100000001000000200000000000010001000000020501000100010020000101090000000100010100
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         The second way to contact an RMIConnectorServer is to specify a path in the JMXServiceURL
+         that indicates the location of a naming server and the JNDI path where the stub object
+         can be found.
+         <sbr/>
+         The JSR 160 specification refers to this possibility as the "JNDI form".
+         <sbr/>
+         In this case the JMXServiceURL path starts with
+         <emphasis>/jndi/</emphasis>.
+      </para>
+      <para>
+         Working with JNDI requires to specify some information about the naming server and the configuration
+         of JNDI itself. These information can be passed to the RMIConnector in several ways; these ways are
+         very similar to the the ways JNDI requires to specify parameters and present no surprise to JNDI users.
+      </para>
+      <para>
+         For example, the URL 'rmi://namingHost:1099/jndiPath' (not to be confused with a JMXServiceURL) says that
+         a naming server on the host 'namingHost' is listening on port 1099, that the naming server is an
+         rmiregistry (indicated by the 'rmi' scheme) and that under the '/jndiPath' path something has been registered.
+         <sbr/>
+         Similarly, the URL 'iiop://namingHost:900/jndiPath' says that
+         a naming server on the host 'namingHost' is listening on port 900, that the naming server is a
+         COS naming service (indicated by the 'iiop' scheme) and that under the '/jndiPath' path something
+         has been registered.
+      </para>
+      <para>
+         It is straightforward then to specify a JMXServiceURL that uses the JNDI URL form:
+      </para>
+      <para>
+         <example>
+            <title>Examples of JNDI URL form JMXServiceURLs</title>
+            <programlisting>
+               <![CDATA[
+// JNDI URL form for JRMP
+service:jmx:rmi://rmiHost/jndi/rmi://namingHost:1099/jndiPath
+
+// JNDI URL form for IIOP
+service:jmx:iiop://rmiHost/jndi/iiop://namingHost:900/jndiPath
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Alternatively, JNDI properties can be specified in the usual ways they are specified for JNDI,
+         namely specifying system properties, a 'jndi.properties' file in the classpath or via an environment Map
+         passed to the
+         <funcdef>JMXConnector.connect(Map environment)</funcdef> method or to the
+         <funcdef>JMXConnectorFactory.connect(JMXServiceURL url, Map environment)</funcdef> method.
+         <sbr/>
+         Since JNDI properties are specified separately, the JMXServiceURL path can be specified
+         using the JNDI short form, where only the JNDI path is specified in the JMXServiceURL:
+      </para>
+      <para>
+         <example>
+            <title>Examples of JNDI short form JMXServiceURLs</title>
+            <programlisting>
+               <![CDATA[
+// JNDI short form for JRMP
+service:jmx:rmi://rmiHost/jndi/jndiPath
+
+// JNDI short form for IIOP
+service:jmx:iiop://rmiHost/jndi/jndiPath
+
+// Code example that uses the JNDI short form specifying JNDI properties via environment Map
+// The JNDI environment
+Map environment = new HashMap();
+environment.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.rmi.registry.RegistryContextFactory");
+environment.put(Context.PROVIDER_URL, "rmi://namingHost:1099");
+// The JNDI short form JMXServiceURL
+JMXServiceURL url = new JMXServiceURL("service:jmx:rmi://rmiHost/jndi/jndiPath");
+// Connect to the server side
+JMXConnector connector = JMXConnectorFactory.connect(url, environment);
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+   </section>
+   <section>
+      <title>ORB properties for JMXConnector and JMXConnectorServer over IIOP</title>
+      <para>
+         When working with IIOP, there may be the need to pass some information in order to
+         correctly create the ORB.
+         <sbr/>
+         In plain Java code, these properties are passed via system properties or via environment Map.
+         Similarly, when using the JSR 160 API, ORB properties can be specified as system properties
+         or via the environment Map
+         passed to the
+         <funcdef>JMXConnector.connect(Map environment)</funcdef> method or to the
+         <funcdef>JMXConnectorFactory.connect(JMXServiceURL url, Map environment)</funcdef> method.
+      </para>
+   </section>
+   <section>
+      <title>RMI socket factories (over SSL) for the RMIConnectorServer over JRMP</title>
+      <para>
+         JSR 160 specifies two constants to specify the
+         <classname>java.rmi.server.RMIClientSocketFactory</classname>
+         and
+         <classname>java.rmi.server.RMIServerSocketFactory</classname> instances that the
+         RMIConnectorServer should use to export itself to the RMI runtime.
+         <sbr/>
+         These constants are
+         <classname>javax.management.remote.rmi.RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE</classname> and
+         <classname>javax.management.remote.rmi.RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE</classname>.
+      </para>
+      <para>
+         The MX4J implementation provides already an implementation of the
+         <classname>java.rmi.server.RMIClientSocketFactory</classname>
+         and
+         <classname>java.rmi.server.RMIServerSocketFactory</classname> interfaces that can be used to
+         encrypt the communication between the RMIConnector and the RMIConnectorServer using SSL, namely the
+         <classname>mx4j.tools.remote.rmi.SSLRMIClientSocketFactory</classname> and
+         <classname>mx4j.tools.remote.rmi.SSLRMIServerSocketFactory</classname>.
+         <sbr/>
+         These classes only work with JDK 1.4 or superior.
+      </para>
+      <para>
+         <example>
+            <title>How to specify the RMI socket factories</title>
+            <programlisting>
+               <![CDATA[
+SSLContext ssl = ...;
+RMIServerSocketFactory ssf = new SSLRMIServerSocketFactory(ssl);
+RMIClientSocketFactory csf = new SSLRMIClientSocketFactory();
+
+Map env = new HashMap();
+env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, ssf);
+env.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, csf);
+
+MBeanServer server = ...;
+
+JMXServiceURL url = new JMXServiceURL("rmi", "localhost", 0);
+cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(url, env, server);
+cntorServer.start();
+                ]]>
+            </programlisting>
+         </example>
+      </para>
+   </section>
+</section>
+
+<section>
+   <title>MX4J's JSR 160 JMXConnectors and JMXConnectorServers</title>
+   <section>
+      <title>The SOAP JSR 160 connector</title>
+      <para>
+         Thanks to the fact that JSR 160 allows complete pluggability of the communication protocol between
+         JMXConnector and JMXConnectorServer, it is possible to add easily new protocol providers.
+         <sbr/>
+         However, since these protocol providers are not defined by the JSR 160 specification, they are likely
+         to be not interoperable between different JSR 160 implementations.
+         <sbr/>
+         This means that - for example - it is safe to have the JSR 160 Sun Reference Implementation on server side
+         and MX4J on client side, or viceversa, only when the the protocol used is RMI or IIOP.
+         <sbr/>
+         MX4J implements a JSR 160 JMXConnector and JMXConnectorServer that use
+         <ulink url="http://www.w3.org/TR/soap/">SOAP</ulink> to communicate. The SOAP toolkit used by MX4J is
+         <ulink url="http://ws.apache.org/axis/">Axis 1.1</ulink>.
+         <sbr/>
+         When the SOAP protocol is used, other JSR 160 implementations will fail because
+         they don't implement the SOAP provider, or they don't implement it in a interoperable way with MX4J.
+         <sbr/>
+         By placing MX4J on both client and server side, you can leverage the functionalities offered by MX4J:
+         in this case you can use SOAP to communicate from client to server and viceversa.
+      </para>
+      <para>
+         Refer to the examples shipped with the MX4J distribution,
+         <classname>mx4j.examples.tools.remote.soap.Server</classname> and
+         <classname>mx4j.examples.tools.remote.soap.Client</classname> to follow the instructions below.
+      </para>
+      <para>
+         Starting successfully a SOAPConnectorServer requires Axis 1.1 and a servlet 2.3 compliant web container.
+         In this example the web container will be the
+         <ulink url="http://jetty.mortbay.com">Jetty</ulink> web
+         container.
+         <sbr/>
+         Starting a standalone SOAPConnectorServer will perform several operations:
+         <itemizedlist>
+            <listitem>Start a Jetty server on the port specified by the JMXServiceURL</listitem>
+            <listitem>Deploy to Jetty the Axis servlet, and mapping it to the path specified by the JMXServiceURL</listitem>
+            <listitem>Deploy to Axis the webservice that represent the remote MBeanServer</listitem>
+         </itemizedlist>
+      </para>
+      <para>
+         On server side, the SOAPConnectorServer ignores the host part of the JMXServiceURL, since
+         it starts the web container on the local host.
+         <sbr/>
+         It is therefore recommended to start the SOAPConnectorServer passing null as host name,
+         to allow the real host name to be retrieved and used (as stated by the JMXServiceURL specification).
+         Also, it is recommended that URL path of the JMXServiceURL not be the empty string.
+      </para>
+      <para>
+         On client side, differently from the rmi, iiop and local providers, the host part of the JMXServiceURL
+         is not ignored; it is used to connect to the server side.
+         <sbr/>
+         It is very important that the host name of the JMXServiceURL on the server and the host name
+         of the JMXServiceURL on the client be exactly the same. If they differ (for example one is the
+         IP address and the other is the host name), then a message saying that the SOAPConnectorServer
+         cannot be found will be displayed.
+      </para>
+      <para>
+         It is possible to start several SOAPConnectorServers in the same JVM, with the constraint that
+         they must all have different URL path in their JMXServiceURLs.
+         In this case only one instance of Jetty will be used (and multiple servlet-mappings mapped to
+         the same Axis servlet).
+      </para>
+      <para>
+         <example>
+            <title>Starting the SOAPConnectorServer</title>
+            <programlisting>
+               <![CDATA[
+// Use null as host
+JMXServiceURL url = new JMXServiceURL("soap", null, 8080, "/jmxconnector");
+
+MBeanServer server = ...;
+
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(url, null, server);
+
+// This method call will:
+// 1. Start Jetty on port 8080
+// 2. Deploy to Jetty the Axis servlet with servlet-mapping /jmxconnector/*
+// 3. Deploy to Axis the web service that represent the remote MBeanServer
+cntorServer.start();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         <example>
+            <title>Connecting to the SOAPConnectorServer</title>
+            <programlisting>
+               <![CDATA[
+// Remember to specify the host name if not in-VM
+JMXServiceURL url = new JMXServiceURL("soap", null, 8080, "/jmxconnector");
+
+// Connect !
+JMXConnector cntor = JMXConnectorFactory.connect(url);
+
+// Invoke some operation
+MBeanServerConnection connection = cntor.getMBeanServerConnection();
+Integer count = connection.getMBeanCount();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         When you want to use a SOAPConnectorServer from within a running web application, it is possible
+         to tell to the SOAPConnectorServer not to start another web container, by passing the property
+         <classname>SOAPConnectorServer.USE_EXTERNAL_WEB_CONTAINER</classname> with the value
+         <classname>Boolean.TRUE</classname> to the environment map passed to
+         <classname>JMXConnectorServerFactory</classname>.
+         <sbr/>
+         In this case, the external web container must already have Axis deployed and mapped to a certain path.
+         <sbr/>
+         For example, the default installation of Axis maps the Axis servlet to the path /axis/services/*.
+         <sbr/>
+         The JMXServiceURL to use in this case should be:
+      </para>
+      <para>
+         service:jmx:soap://host:8080/axis/services
+      </para>
+      <para>
+         As further example, you can take a look at the index.jsp page inside the mx4j-soap.war bundled
+         with the MX4J distribution to see how a SOAPConnectorServer can be started from within a web
+         application.
+      </para>
+   </section>
+   <section>
+      <title>The HESSIAN and BURLAP JSR 160 connectors</title>
+      <para>
+         MX4J implements other two JMXConnectors and JMXConnectorServers that use open source (Apache license)
+         <ulink url="http://www.caucho.com">Caucho</ulink> protocols
+         <ulink url="http://www.caucho.com/hessian">Hessian and Burlap</ulink>.
+         <sbr/>
+         Similarly to the SOAP JMXConnector and JMXConnectorServer, Hessian's and Burlap's
+         JMXConnector and JMXConnectorServer use HTTP as transport protocol.
+      </para>
+      <para>
+         Starting successfully a [Hessian|Burlap]ConnectorServer requires the hessian/burlap library
+         (hessian-3.0.8.jar) and a servlet 2.3 compliant web container, like for example, the
+         <ulink url="http://jetty.mortbay.com">Jetty</ulink> web container.
+         <sbr/>
+         Starting a standalone [Hessian|Burlap]ConnectorServer will perform several operations:
+         <itemizedlist>
+            <listitem>Start a Jetty server on the port specified by the JMXServiceURL</listitem>
+            <listitem>Deploy to Jetty an MX4J's customized [Hessian|Burlap] servlet, and mapping it to the path specified by the JMXServiceURL</listitem>
+         </itemizedlist>
+      </para>
+      <para>
+         Follow the advices given for the SOAPConnectorServer in choosing the JMXServiceURL on server side
+         and on client side.
+      </para>
+      <para>
+         <example>
+            <title>Starting the HessianConnectorServer</title>
+            <programlisting>
+               <![CDATA[
+// Use null as host
+JMXServiceURL url = new JMXServiceURL("hessian", null, 8080, "/hessian");
+
+MBeanServer server = ...;
+
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(url, null, server);
+
+// This method call will:
+// 1. Start Jetty on port 8080
+// 2. Deploy to Jetty the MX4J's Hessian servlet with servlet-mapping /hessian/*
+cntorServer.start();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         <example>
+            <title>Connecting to the HessianConnectorServer</title>
+            <programlisting>
+               <![CDATA[
+// Remember to specify the host name if not in-VM
+JMXServiceURL url = new JMXServiceURL("hessian", null, 8080, "/hessian");
+
+// Connect !
+JMXConnector cntor = JMXConnectorFactory.connect(url);
+
+// Invoke some operation
+MBeanServerConnection connection = cntor.getMBeanServerConnection();
+Integer count = connection.getMBeanCount();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         To use the Burlap protocol instead of the Hessian protocol, just replace the protocol (and optionally
+         the path), from 'hessian' to 'burlap'.
+      </para>
+   </section>
+</section>
+
+<section>
+   <title>Using HTTP-based connectors over HTTPS</title>
+   <para>
+      The HTTP-based connectors, namely the soap, hessian and burlap connectors, can be run over the HTTPS
+      protocol.
+   </para>
+   <para>
+      The configuration of the MX4J connector is quite simple, but requires understanding of how certificates
+      and security in general work in the Java platform.
+      <sbr/>
+      You can find more information on the security in the Java platform
+      <ulink url="http://java.sun.com/security">here</ulink>.
+   </para>
+   <para>
+      HTTP-based MX4J connectors can be run over HTTPS by adding the string "+ssl" (without quotes) to
+      the protocol of the JMXServiceURL normally used to start the connector over the plain HTTP protocol.
+      <sbr/>
+      For example, the JMXServiceURL to start the SOAP connector server over plain HTTP would be something like
+   </para>
+   <para>
+      service:jmx:soap://host:8080/jmxconnector
+   </para>
+   <para>
+      while the JMXServiceURL to start the SOAP connector server over HTTPS would be something like
+   </para>
+   <para>
+      service:jmx:soap+ssl://host:8443/jmxconnector
+   </para>
+   <para>
+      However, this is not enough, since running a web container over HTTPS requires a detailed configuration
+      of the web container itself and of the keystore that contains the certificate with the public key for the
+      SSL protocol.
+   </para>
+   <section>
+      <title>Configuration of the web container</title>
+      <para>
+         The configuration of the web container usually requires to specify a file path for the keystore, the
+         keystore and the key passwords, and of course the HTTPS port the web container will listen to, that
+         must match the port provided in the JMXServiceURL.
+      </para>
+      <para>
+         This configuration is to be specified in the environment Map passed at the moment of the creation of the
+         JMXConnectorServer using the
+         <classname>mx4j.tools.remote.http.HTTPConnectorServer.WEB_CONTAINER_CONFIGURATION</classname>
+         constant as key, and a String that points to the file path of the configuration file as value.
+         <sbr/>
+         Below there is a sample configuration file for the default web container used by MX4J,
+         <ulink url="http://jetty.mortbay.com">Jetty</ulink>.
+      </para>
+      <para>
+         <example>
+            <title>Example Jetty configuration file to run JMXConnectorServers over HTTPS</title>
+            <programlisting>
+               <![CDATA[
+<?xml version="1.0" encoding="ISO-8859-1" ?>
+<!DOCTYPE Configure PUBLIC "-//Mort Bay Consulting//DTD Configure//EN" "http://jetty.mortbay.org/configure.dtd">
+
+<Configure class="org.mortbay.jetty.Server">
+  <Call name="addListener">
+    <Arg>
+      <New class="org.mortbay.http.SunJsseListener">
+        <Set name="Port">8443</Set>
+        <Set name="PoolName">P1</Set>
+        <Set name="MaxIdleTimeMs">30000</Set>
+        <Set name="lowResources">30</Set>
+        <Set name="LowResourcePersistTimeMs">2000</Set>
+        <Set name="Keystore"><SystemProperty name="jetty.home" default="."/>/mx4j.ks</Set>
+        <Set name="Password">mx4jmx4j</Set>
+        <Set name="KeyPassword">mx4jmx4j</Set>
+
+        <Set name="HttpHandler">
+          <New class="org.mortbay.http.handler.MsieSslHandler">
+            <Set name="UserAgentSubString">MSIE 5</Set>
+          </New>
+        </Set>
+      </New>
+    </Arg>
+  </Call>
+</Configure>
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Note that the configuration specifies the keystore file path, the keystore and the key passwords.
+         <sbr/>
+         Jetty allows the passwords to be obfuscated; see the Jetty documentation for more details
+         <ulink url="http://jetty.mortbay.com/javadoc/org/mortbay/util/Password.html">here</ulink>.
+      </para>
+   </section>
+   <section>
+      <title>Configuration of the keystore</title>
+      <para>
+         The keystore must contain a valid certificate issued for the server host where the
+         web container (started by the HTTP-based JMXConnectorServer) will run on.
+         <sbr/>
+         This is normally specified in the common name part of the distinguished name of the certificate.
+      </para>
+      <para>
+         Furthermore, the certificate must be trusted by the client.
+         This means that the certificate must be signed by
+         a well-known certification authority, and that the root certification authority must be present
+         in the trusted certificates of the Java platform on client side, normally stored in the
+         $JAVA_HOME/jre/lib/security/cacerts file.
+      </para>
+      <para>
+         In the more common case of "experiments", or during development, you can create a self-signed
+         certificate using this command:
+      </para>
+      <para>
+         $JAVA_HOME/bin/keytool -genkey -keyalg "RSA" -keystore mx4j.ks -storepass mx4jmx4j -dname "cn=myhost"
+      </para>
+      <para>
+         Replace the keystore file path and password with your choices, and replace the common name value with
+         the host name the web container will run on.
+      </para>
+      <para>
+         To avoid to import this certificate in the trusted certificates of the Java platform on client side, you must
+         specify the following system property (using either the -D syntax in the command line that starts the JVM,
+         or calling
+         <classname>System.setProperty</classname> in your program):
+      </para>
+      <para>
+        javax.net.ssl.trustStore=mx4j.ks
+      </para>
+      <para>
+         Replace the keystore file path with your choice.
+      </para>
+      <para>
+         Needless to say we don't recommend to set these java properties in your programs, nor to share
+         the keystore between client and server. What should be done in real environments is to sign the
+         certificate with a trusted certification authority.
+      </para>
+   </section>
+   <section>
+      <title>Code examples</title>
+      <para>
+         Refer to the examples bundled with the MX4J distribution, specifically the
+         <classname>mx4j.examples.tools.remote.hessian.ssl.*</classname> files.
+      </para>
+      <para>
+         <example>
+            <title>Starting and connecting to the Hessian connector server over HTTPS</title>
+            <programlisting>
+               <![CDATA[
+// Server side configuration; copy/paste the jetty configuration above into a file named
+// jetty.mx4j.xml and put it in the directory from where the JVM is launched
+Map serverEnv = new HashMap();
+serverEnv.put(HTTPConnectorServer.WEB_CONTAINER_CONFIGURATION, "jetty.mx4j.xml");
+
+// Note the null host: it will use the current host name, that must match the common name
+// present in the certificate contained in the keystore
+JMXServiceURL url = new JMXServiceURL("hessian+ssl", null, 8443, "/hessianjmx");
+
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(url, serverEnv, newMBeanServer());
+cntorServer.start();
+
+// Client side configuration; specify the trusted keystore with a system property.
+// NOT recommended for production environments.
+System.setProperty("javax.net.ssl.trustStore", "mx4j.ks");
+JMXConnector cntor = JMXConnectorFactory.connect(url);
+MBeanServerConnection cntion = cntor.getMBeanServerConnection();
+int count = cntion.getMBeanCount().intValue();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+   </section>
+</section>
+<!--
+<section>
+   <title>How to use MX4J's JSR 160 connectors with J2SE 5+</title>
+   <para>
+      Since J2SE 5 (Tiger), both the standard remote JMX classes (from JSR 160, under packages
+      <classname>javax.management.remote.*</classname>) and the standard JMX classes
+      (from JSR 3, under packages
+      <classname>javax.management.*</classname>) have been included in the
+      standard JDK/JRE distribution from Sun.
+      <sbr/>
+      This means that by default, the JMX and JSR 160 implementation you use in J2SE 5 are not MX4J's,
+      but the ones shipped with the JDK, even if you put the MX4J jars in the classpath or under the
+      WEB-INF/lib directory of a web application.
+   </para>
+   <para>
+      The J2SE 5 platform contains the full implementation of JMX (JSR 3), and the mandatory part of
+      JSR 160.
+      <sbr/>
+      The mandatory part of JSR 160 contains the standard API (e.g.
+      <classname>javax.management.remote.JMXServiceURL</classname>,
+      <classname>javax.management.remote.JMXConnector</classname>,
+      <classname>javax.management.remote.JMXConnectorServer</classname>, etc), and two implementations
+      of JSR 160 providers over the
+      <emphasis>rmi</emphasis> and
+      <emphasis>iiop</emphasis> protocols.
+      <sbr/>
+      The optional
+      <emphasis>jmxmp</emphasis> protocol is not shipped with the JDK in J2SE 5 (and it is
+      not implemented by MX4J).
+   </para>
+   <para>
+      This means that by default, J2SE 5 only recognizes JMXServiceURLs of this type:
+      <sbr/>
+      service:jmx:rmi:///jndi/whatever and
+      <sbr/>
+      service:jmx:iiop:///jndi/whatever,
+      <sbr/>
+      and it is only able to instantiate
+      <classname>javax.management.remote.rmi.RMIConnectorServer</classname>s
+      and
+      <classname>javax.management.remote.rmi.RMIConnector</classname>s.
+   </para>
+   <para>
+      However, it is extremely simple to tell the JSR 160 API in J2SE 5 to recognize other JMXServiceURLs,
+      and to load connectors from other implementations such as MX4J, simply by specifying a property in the
+      environment Map passed at the moment of creation of the JMXConnectorServer or JMXConnector.
+      <sbr/>
+      Below an example of how to start the MX4J SOAP Connector using J2SE 5:
+   </para>
+   <para>
+      <example>
+         <title>How to start an MX4J SOAP Connector in J2SE 5</title>
+         <programlisting>
+            <![CDATA[
+// Remember to put mx4j-tools.jar in the classpath
+
+// How to start an MX4J SOAP JMXConnectorServer in J2SE 5
+Map serverEnv = new HashMap();
+serverEnv.put(JMXConnectorServerFactory.PROTOCOL_PROVIDER_PACKAGES, MX4JRemoteConstants.PROVIDER_PACKAGES);
+
+JMXServiceURL url = new JMXServiceURL("soap", null, 8080, "/soapjmx");
+
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnectorServer(url, serverEnv, newMBeanServer());
+cntorServer.start();
+
+// How to connect with an MX4J SOAP JMXConnector in J2SE 5
+Map clientEnv = new HashMap();
+clientEnv.put(JMXConnectorFactory.PROTOCOL_PROVIDER_PACKAGES, MX4JRemoteConstants.PROVIDER_PACKAGES);
+
+JMXConnector cntor = JMXConnectorFactory.connect(url, clientEnv);
+
+MBeanServerConnection cntion = cntor.getMBeanServerConnection();
+int count = cntion.getMBeanCount().intValue();
+            ]]>
+         </programlisting>
+      </example>
+   </para>
+   <para>
+      Note the usage of the environment property defined by the constants
+      <classname>JMXConnectorServerFactory.PROTOCOL_PROVIDER_PACKAGES</classname> and
+      <classname>JMXConnectorFactory.PROTOCOL_PROVIDER_PACKAGES</classname>, respectively for server and client,
+      and note how MX4J provides a convenient constant for their values:
+      <classname>MX4JRemoteConstants.PROVIDER_PACKAGES</classname>.
+   </para>
+   <para>
+      Further information on the JSR 160 external provider loading mechanism are detailed in the
+      <ulink url="http://jcp.org/en/jsr/detail?id=160">JSR 160 specification</ulink> and in javadocs of the
+      <ulink url="http://java.sun.com/j2se/1.5.0/docs/api/javax/management/remote/JMXConnectorFactory.html">
+         <classname>JMXConnectorFactory</classname>
+      </ulink> and
+      <ulink url="http://java.sun.com/j2se/1.5.0/docs/api/javax/management/remote/JMXConnectorServerFactory.html">
+         <classname>JMXConnectorServerFactory</classname>
+      </ulink> classes.
+   </para>
+</section>
+-->
+<section>
+   <title>Porting old MX4J remoting code to JSR 160</title>
+   <section>
+      <title>Introduction</title>
+      <para>
+         MX4J version 1.x provided a custom implementation of a connector server and connector client based on
+         the RMI protocol.
+         <sbr/>
+         That old code is now obsolete due to the fact that MX4J implements JSR 160. In the following sections will
+         be explained how to port old MX4J 1.x remoting code to the standard JSR 160 API.
+      </para>
+   </section>
+   <section>
+      <title>Porting Examples</title>
+      <para>
+         The following example will show old MX4J 1.x remoting code compared to JSR 160 code,
+         with respect to creating and starting a connector server over JRMP on server side.
+      </para>
+      <para>
+         <example>
+            <title>Old MX4J 1.x remoting code, server side</title>
+            <programlisting>
+               <![CDATA[
+(1)
+String jndiName = "jrmp";
+
+(2)
+mx4j.adaptor.rmi.jrmp.JRMPAdaptor adaptor = new mx4j.adaptor.rmi.jrmp.JRMPAdaptor();
+
+(3)
+adaptor.putJNDIProperty(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.rmi.registry.RegistryContextFactory");
+adaptor.putJNDIProperty(Context.PROVIDER_URL, "rmi://localhost:1099");
+adaptor.setJNDIName(jndiName);
+
+(4)
+adaptor.start();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         <example>
+            <title>JSR 160 remoting code, server side</title>
+            <programlisting>
+               <![CDATA[
+(1)
+JMXServiceURL address = new JMXServiceURL("rmi", "localhost", 0, "/jndi/jrmp");
+
+(3)
+Map environment = new HashMap();
+environment.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.rmi.registry.RegistryContextFactory");
+environment.put(Context.PROVIDER_URL, "rmi://localhost:1099");
+
+(2)
+JMXConnectorServer cntorServer = JMXConnectorServerFactory.newJMXConnector(address, environment, null); (2)
+
+(4)
+cntorServer.start();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Note the following differences:
+         <orderedlist>
+            <listitem>
+               How the JNDI name "jrmp" has been replaced by a JMXServiceURL with an URLPath of "/jndi/jrmp".
+            </listitem>
+            <listitem>
+               How the instantiation of the adaptor has been replaced by usage of a factory.
+            </listitem>
+            <listitem>
+               How the JNDI properties are passed via a Map.
+            </listitem>
+         </orderedlist>
+      </para>
+      <para>
+         Note that in both cases the adaptor (connector server) must be started in order to be able to accept
+         incoming connections (4).
+      </para>
+      <para>
+         Note also that both the JRMPAdaptor and the JMXConnectorServer are MBeans, and as such they can be
+         registered inside an MBeanServer (no differences here).
+      </para>
+      <para>
+         The following example will show old MX4J 1.x remoting code compared to JSR 160 code,
+         with respect to creating and connecting a connector over JRMP on client side.
+      </para>
+      <para>
+         <example>
+            <title>Old MX4J 1.x remoting code, client side</title>
+            <programlisting>
+               <![CDATA[
+(1)
+String jndiName = "jrmp";
+
+(2)
+mx4j.connector.rmi.jrmp.JRMPConnector connector = new mx4j.connector.rmi.jrmp.JRMPConnector();
+
+(3)
+Hashtable environment = new Hashtable();
+environment.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.rmi.registry.RegistryContextFactory");
+environment.put(Context.PROVIDER_URL, "rmi://localhost:1099");
+
+(4)
+connector.connect(jndiName, environment);
+
+(5)
+mx4j.connector.RemoteMBeanServer server = connector.getRemoteMBeanServer();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         <example>
+            <title>JSR 160 remoting code, client side</title>
+            <programlisting>
+               <![CDATA[
+(1)
+JMXServiceURL address = new JMXServiceURL("rmi", "localhost", 0, "/jndi/jrmp");
+
+(3)
+Map environment = new HashMap();
+environment.put(Context.INITIAL_CONTEXT_FACTORY, "com.sun.jndi.rmi.registry.RegistryContextFactory");
+environment.put(Context.PROVIDER_URL, "rmi://localhost:1099");
+
+(2)
+JMXConnector connector = JMXConnectorFactory.newJMXConnector(address, environment);
+
+(4)
+connector.connect(environment);
+
+(5)
+MBeanServerConnection server = connector.getMBeanServerConnection();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Again, note the following differences:
+         <orderedlist>
+            <listitem>
+               How the JNDI name "jrmp" has been replaced by a JMXServiceURL with an URLPath of "/jndi/jrmp".
+            </listitem>
+            <listitem>
+               How the instantiation of the connector has been replaced by usage of a factory.
+            </listitem>
+            <listitem>
+               How the JNDI properties are passed via a Map.
+            </listitem>
+            <listitem>
+               The different number of arguments passed to the connect() method.
+            </listitem>
+            <listitem>
+               How the
+               <classname>mx4j.connector.RemoteMBeanServer</classname> class is replaced by the
+               <classname>javax.management.MBeanServerConnection</classname> class.
+            </listitem>
+         </orderedlist>
+      </para>
+      <para>
+         Very similar changes apply when the old MX4J 1.x remoting code is using the
+         <classname>mx4j.adaptor.rmi.iiop.IIOPAdaptor</classname> and the
+         <classname>mx4j.connector.rmi.iiop.IIOPConnector</classname>.
+      </para>
+   </section>
+</section>
+<section>
+   <title>MX4J Remote Tools and Utilities</title>
+   <section>
+      <title>Remote MBean Proxying</title>
+      <para>
+         Complex systems based on JMX are also, most of the times, distributed systems.
+         <sbr/>
+         Such systems are often made of
+         <emphasis>nodes</emphasis>, and each node is made of
+         <emphasis>components</emphasis>.
+         <sbr/>
+         When the underlying architecture is JMX, in each node there is one (possibly more) MBeanServer that manages
+         the components, and each component is an MBean.
+      </para>
+      <para>
+         Sometimes there is the need to have one MBeanServer gathering information from many remote
+         MBeanServers. However, the information needed is only part of the information exposed by each remote
+         MBeanServer: you may want to collect only some information from each remote MBeanServer.
+         <sbr/>
+         For this purpose, it is useful to write an MBean that exposes this information, and register one instance
+         of this MBean per each remote MBeanServer.
+      </para>
+      <para>
+         A client application may want to connect to the gathering MBeanServer to see the gathered
+         information, without having the hassle to connect to each individual remote MBeanServer and choose the
+         information MBean among the others.
+      </para>
+      <para>
+         In short, the gathering MBeanServer acts as a proxy for certain MBeans hosted elsewhere: client applications
+         only need to contact the gathering MBeanServer to get the information they need.
+      </para>
+      <para>
+         For this purpose MX4J provides a remote MBean proxy: an MBean you can register in the
+         gathering MBeanServer that acts as a proxy for a remote MBean hosted in a remote MBeanServer.
+         <sbr/>
+         Refer anyway to the javadocs of the
+         <ulink url="/docs/api/mx4j/remote/RemoteMBeanProxy.html">RemoteMBeanProxy</ulink> class for further
+         information.
+         <sbr/>
+         Below there is an example where remote MBeanServers publish information about the downloads of
+         products, and a gathering MBeanServer proxies these information for easier access via the HTTPAdaptor.
+      </para>
+      <para>
+         <example>
+            <title>Remote MBean proxying</title>
+            <programlisting>
+               <![CDATA[
+// A remote MBeanServer
+// It exposes also a JMXConnectorServer at the address 'service:jmx:rmi://localhost/jndi/jmx1'
+MBeanServer remoteMBeanServer1 = ...;
+
+// A remote MBean
+Object remoteMBean1 = ...;
+ObjectName remoteMBeanName1 = ObjectName.getInstance("sytem.information:type=downloads,product=mx4j");
+remoteMBeanServer1.registerMBean(remoteMBean1, remoteMBeanName1);
+
+// Another remote MBeanServer
+// It exposes also a JMXConnectorServer at the address 'service:jmx:rmi://localhost/jndi/jmx2'
+MBeanServer remoteMBeanServer2 = ...;
+
+// A remote MBean
+Object remoteMBean2 = ...;
+ObjectName remoteMBeanName2 = ObjectName.getInstance("information.data:type=downloads,product=tomcat");
+remoteMBeanServer2.registerMBean(remoteMBean2, remoteMBeanName2);
+
+// The proxy for the MBean in the first MBeanServer
+JMXServiceURL url1 = new JMXServiceURL("rmi", "localhost", 0, "/jndi/jmx1");
+RemoteMBeanProxy proxy1 = new RemoteMBeanProxy(remoteMBeanName1, url1);
+ObjectName proxyName1 = ObjectName.getInstance("system.download:product=mx4j");
+
+// The proxy for the MBean in the second MBeanServer
+JMXServiceURL url2 = new JMXServiceURL("rmi", "localhost", 0, "/jndi/jmx2");
+RemoteMBeanProxy proxy2 = new RemoteMBeanProxy(remoteMBeanName2, url2);
+ObjectName proxyName2 = ObjectName.getInstance("system.download:product=tomcat");
+
+// The gathering MBeanServer
+// It exposes also a HTTPAdaptor on port 8082
+MBeanServer gatheringMBeanServer = ...;
+gatheringMBeanServer.registerMBean(proxy1, proxyName1);
+gatheringMBeanServer.registerMBean(proxy2, proxyName2);
+
+// Browsing on port 8082 you can see, on the gathering MBeanServer, the proxied MBeans.
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         The
+         <classname>mx4j.remote.RemoteMBeanProxy</classname> MBean is a transparent proxy for the remote MBean:
+         invoking a method on the proxy results in the method being invoked on the remote MBean; registering a local
+         NotificationListener on the proxy results in registration on the remote MBean, and thus
+         the local listener will receive notifications emitted by the remote MBean.
+         <sbr/>
+         For example, by proxying the remote MBeanServerDelegate MBean, you can receive locally notifications of
+         MBean registrations/unregistrations that happens in the remote MBeanServer.
+      </para>
+   </section>
+</section>

@@ -1,0 +1,945 @@
+<section>
+   <title>XML Configuration Loader</title>
+   <section>
+      <title>Loading and starting MBeans using XML files</title>
+      <para>
+         The <classname>javax.management.loading.MLet</classname> class provides a way to load
+         and instantiate MBeans from a configuration file called <emphasis>MLet file</emphasis>. <sbr/>
+         The MLet file has however a limited syntax, since it can only instantiate and register
+         MBeans into an MBeanServer: no method invocation is possible, no MBean's unregistration,
+         no possibility to use factories to create objects and so on.
+         Furthermore, the MLet file format is not XML.
+      </para>
+      <para>
+         MX4J's <classname>mx4j.tools.config.ConfigurationLoader</classname> defines an XML configuration
+         file format where it is possible to specify creation of objects, their registration
+         into an MBeanServer, their unregistration, the invocation of methods, both via MBeanServer
+         (JMX invocations) and via normal Java invocation.
+      </para>
+      <para>
+         Let's see a simple example that registers MX4J's HTTP adaptor into an MBeanServer. <sbr/>
+         First, we need a small class that creates the MBeanServer and the ConfigurationLoader:
+      </para>
+      <para>
+         <example>
+            <title>Main class for configuration loading</title>
+            <programlisting>
+            <![CDATA[
+public class Startup
+{
+   public static void main(final String[] args) throws Exception
+   {
+      // MX4J's logging redirection to Apache's Commons Logging
+//    mx4j.log.Log.redirectTo(new CommonsLogger());
+
+      // Create the MBeanServer
+      MBeanServer server = MBeanServerFactory.createMBeanServer();
+
+      // Create the ConfigurationLoader
+      ConfigurationLoader loader = new ConfigurationLoader();
+
+      // Register the configuration loader into the MBeanServer
+      ObjectName name = ObjectName.getInstance(":service=configuration");
+      server.registerMBean(loader, name);
+
+      // Tell the configuration loader the XML configuration file
+      Reader reader = new BufferedReader(new FileReader(args[0]));
+      loader.startup(reader);
+      reader.close();
+   }
+}
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         The class simply creates an MBeanServer, creates the ConfigurationLoader and tells
+         the configuration loader to read an XML file from the path passed as argument. <sbr/>
+         The XML file can be the following:
+      </para>
+      <para>
+         <example>
+            <title>XML file for configuration of MX4J's HttpAdaptor</title>
+            <programlisting>
+            <![CDATA[
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<configuration>
+   <startup>
+      <create classname="mx4j.tools.adaptor.http.HttpAdaptor" objectname="connectors:type=http" loadername="null">
+         <arg type="int">9090</arg>
+         <arg type="string">localhost</arg>
+      </create>
+      <create classname="mx4j.tools.adaptor.http.XSLTProcessor" objectname="connectors:type=http,processor=xslt" loadername="null"/>
+      <call objectname="connectors:type=http" attribute="ProcessorNameString">
+         <arg type="string">connectors:type=http,processor=xslt</arg>
+      </call>
+      <call objectname="connectors:type=http" operation="start"/>
+   </startup>
+
+   <shutdown>
+      <call objectname="connectors:type=http" operation="stop"/>
+   </shutdown>
+</configuration>
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         The first thing to notice is that the configuration file is splitted in 2 sections, namely
+         <emphasis>startup</emphasis> and <emphasis>shutdown</emphasis>.
+         We will see later how the shutdown section comes into play.
+      </para>
+      <para>
+         Let's examine the startup section. <sbr/>
+         It contains the creation of the <classname>mx4j.tools.adaptor.http.HttpAdaptor</classname>
+         MBean (passing 2 arguments to its constructor)
+         and of the <classname>mx4j.tools.adaptor.http.XSLTProcessor</classname> MBean via the
+         <emphasis>create</emphasis> element. <sbr/>
+         These MBeans are registered in the MBeanServer that also manages the ConfigurationLoader MBean. <sbr/>
+         Both these 2 operations are possible also with the MLet file. <sbr/>
+         What is different is the possibility to set JMX attributes and invoke JMX operations on the
+         MBeans just registered. This is achieved with the <emphasis>call</emphasis> element: first the
+         XSLT processor is set onto the HTTP adaptor, then the HTTP adaptor itself is started.
+      </para>
+      <para>
+         Let's see now a more complex example: how to register and start a JSR 160 connector server.
+      </para>
+      <para>
+         <example>
+            <title>XML file for configuration of a JSR 160 connector server</title>
+            <programlisting>
+            <![CDATA[
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<configuration>
+   <startup>
+      <create classname="mx4j.tools.naming.NamingService" objectname="naming:type=rmiregistry">
+         <arg type="int">1099</arg>
+      </create>
+      <call operation="start" objectname="naming:type=rmiregistry" />
+
+      <object objectid="rmi">
+         <call classname="javax.management.remote.JMXConnectorServerFactory" method="newJMXConnectorServer">
+            <arg type="javax.management.remote.JMXServiceURL">
+               <new classname="javax.management.remote.JMXServiceURL">
+                  <arg type="string">service:jmx:rmi://localhost/jndi/rmi://localhost:1099/jmx</arg>
+               </new>
+            </arg>
+            <arg type="java.util.Map" />
+            <arg type="javax.management.MBeanServer" />
+         </call>
+      </object>
+      <register objectname="connectors:type=rmi,protocol=jrmp">
+         <arg type="object" refobjectid="rmi" />
+      </register>
+      <call method="start" refobjectid="rmi" />
+   </startup>
+
+   <shutdown>
+      <call method="stop" refobjectid="rmi" />
+      <call operation="stop" objectname="naming:type=rmiregistry" />
+      <unregister objectname="connectors:type=rmi,protocol=jrmp" />
+      <unregister objectname="naming:type=rmiregistry" />
+   </shutdown>
+</configuration>
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Note the usage of the <emphasis>object</emphasis> element. It is possible to assign an ID (in the example
+         is "rmi") to objects that gets created in the XML file, and refer to them afterwards using the
+         <emphasis>refobjectid</emphasis> attribute. <sbr/>
+         Note also the syntax to invoke the static call to the <classname>JMXConnectorServerFactory</classname>,
+         and the syntax to invoke non-JMX operations when calling "start" on the "rmi" object. <sbr/>
+         Objects can be created by using the <emphasis>new</emphasis> element, and constructor arguments specified
+         with the <emphasis>arg</emphasis> element. Note how null arguments are passed to the
+         <classname>JMXConnectorServerFactory</classname> (the second and third argument of type Map and MBeanServer).
+      </para>
+      <para>
+         Let's now explain the meaning of the <emphasis>shutdown</emphasis> section. <sbr/>
+         If the <emphasis>startup</emphasis> section defines how the MBeans should be created, registered and
+         put into operation (for example by calling "start" operations on them), the shutdown section defines
+         how the MBeans should be stopped from operating and eventually unregistered.
+      </para>
+      <para>
+         It remains the problem of how to make the configuration loader invoke the shutdown section.
+      </para>
+      <para>
+         This is done by specifying a port as attribute of the <emphasis>configuration</emphasis> element;
+         the configuration loader will start a server socket on that port, so that from another JVM will be
+         possible to connect to that socket and invoke the shutdown command. <sbr/>
+         For security reasons, the server socket will listen on the loopback interface of the host, so that
+         only JVMs started on the same host can invoke the shutdown section.
+      </para>
+      <para>
+         Below, an example of a class that invokes the shutdown section and a sample XML file that specifies
+         the port for the server socket.
+      </para>
+      <para>
+         <example>
+            <title>Simple XML file that specifies the command port</title>
+            <programlisting>
+            <![CDATA[
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<configuration port="9876">
+   <startup>
+      <create classname="mx4j.tools.naming.NamingService" objectname="naming:type=rmiregistry">
+         <arg type="int">1099</arg>
+      </create>
+      <call operation="start" objectname="naming:type=rmiregistry" />
+   </startup>
+
+   <shutdown>
+      <call operation="stop" objectname="naming:type=rmiregistry" />
+      <unregister objectname="naming:type=rmiregistry" />
+   </shutdown>
+</configuration>
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         <example>
+            <title>Simple Java class that invokes "shutdown" to execute the shutdown section</title>
+            <programlisting>
+            <![CDATA[
+public class Shutdown
+{
+   public static void main(String[] args) throws Exception
+   {
+      Socket socket = new Socket("127.0.0.1", 9876);
+      socket.getOutputStream().write("shutdown".getBytes());
+      socket.close();
+   }
+}
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         The XML configuration DTD is the following:
+      </para>
+      <para>
+         <example>
+            <title>XML configuration DTD</title>
+            <programlisting>
+            <![CDATA[
+<!ELEMENT configuration (startup?, shutdown?)>
+<!ATTLIST configuration port CDATA #IMPLIED>
+
+<!ELEMENT startup (call*, create*, object*, register*)>
+
+<!ELEMENT shutdown (call*, unregister*)>
+
+<!ELEMENT call (arg*)>
+<!ATTLIST call classname CDATA #IMPLIED>
+<!ATTLIST call objectname CDATA #IMPLIED>
+<!ATTLIST call refobjectid CDATA #IMPLIED>
+<!ATTLIST call method CDATA #IMPLIED>
+<!ATTLIST call operation CDATA #IMPLIED>
+<!ATTLIST call attribute CDATA #IMPLIED>
+
+<!ELEMENT create (arg*)>
+<!ATTLIST create classname CDATA #REQUIRED>
+<!ATTLIST create objectname CDATA #IMPLIED>
+<!ATTLIST create loadername CDATA #IMPLIED>
+
+<!ELEMENT object (call | new)>
+<!ATTLIST object objectid CDATA #REQUIRED>
+
+<!ELEMENT new (arg*)>
+<!ATTLIST new classname CDATA #REQUIRED>
+
+<!ELEMENT register (arg*)>
+<!ATTLIST register objectname CDATA #IMPLIED>
+
+<!ELEMENT unregister EMPTY>
+<!ATTLIST unregister objectname CDATA #REQUIRED>
+
+<!ELEMENT arg (call | new | #PCDATA)>
+<!ATTLIST arg type CDATA #REQUIRED>
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+   </section>
+</section>
+
+<section>
+   <title>Dynamic MBeans</title>
+   <section>
+      <title>AbstractDynamicMBean base class for DynamicMBean implementation</title>
+      <para>
+         Writing an MBean by implementing the
+         <classname>javax.management.DynamicMBean</classname> interface can be a heavy
+         and tedious task.
+      </para>
+      <para>
+         MX4J provides the class
+         <classname>mx4j.AbstractDynamicMBean</classname> as a base class to implement a
+         dynamic MBean.
+         <sbr/>This class handles most of the tedious work that must be done when implementing dynamic MBeans,
+         so that the MBean implementor has just to override few methods to provide the needed information required
+         to create the MBean.
+      </para>
+      <para>
+         The methods of the
+         <classname>AbstractDynamicMBean</classname> class can be divided in 2 groups: the methods of the
+         <classname>DynamicMBean</classname> interface and the methods added by
+         <classname>AbstractDynamicMBean</classname> itself.
+      </para>
+      <para>
+         <classname>AbstractDynamicMBean</classname> already implements all the methods of the
+         <classname>DynamicMBean</classname>
+         interface, and normally the MBean implementor does not have to override them.
+         <sbr/>
+         The methods belonging to the second group are normally overridden by the MBean implementor to provide the MBean metadata information,
+         and are the following:
+         <itemizedlist>
+            <listitem>
+               <funcdef>
+                  <function>createMBeanAttributeInfo</function>
+               </funcdef>, if the MBeans has manageable attributes
+            </listitem>
+            <listitem>
+               <funcdef>
+                  <function>createMBeanOperationInfo</function>
+               </funcdef>, if the MBeans has manageable operations
+            </listitem>
+            <listitem>
+               <funcdef>
+                  <function>createMBeanNotificationInfo</function>
+               </funcdef>, if the MBeans has manageable notifications
+            </listitem>
+            <listitem>
+               <funcdef>
+                  <function>createMBeanConstructorInfo</function>
+               </funcdef>, if the MBeans has manageable constructors
+            </listitem>
+            <listitem>
+               <funcdef>
+                  <function>getMBeanDescription</function>
+               </funcdef>
+            </listitem>
+         </itemizedlist>
+      </para>
+      <para>
+         A third group of methods belongs to the subclass of
+         <classname>AbstractDynamicMBean</classname> and are the implementation
+         methods, the ones that implement the functionality of the MBean itself (see below for an example).
+      </para>
+      <para>
+         <example>
+            <title>Subclassing
+               <classname>AbstractDynamicMBean</classname>
+            </title>
+            <programlisting>
+               <![CDATA[
+public class SimpleDynamic extends AbstractDynamicMBean
+{
+   /* Method of the second group that is overridden */
+   protected MBeanAttributeInfo[] createMBeanAttributeInfo()
+   {
+      return new MBeanAttributeInfo[]
+      {
+         new MBeanAttributeInfo("Name", String.class.getName(), "The name", true, true, false)
+      };
+   }
+
+   /* Method of the second group that is overridden */
+   protected String getMBeanDescription()
+   {
+      return "A simple DynamicMBean";
+   }
+
+   /* Method of the third group that implements the MBean functionality */
+   public String getName() { ... }
+
+   /* Method of the third group that implements the MBean functionality */
+   public void setName(String name) { ... }
+}
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         As you can see above, no methods from the
+         <classname>DynamicMBean</classname> interface needs to be implemented.
+         It is sufficient to override some (or all) of the methods of the second group, and provide the relative methods
+         of the third group.
+      </para>
+      <para>
+         Normally the MBean implementor extends
+         <classname>AbstractDynamicMBean</classname>, but if the MBean already extends another
+         class it is sufficient to implement
+         <classname>DynamicMBean</classname> and delegate to a subclass of
+         <classname>AbstractDynamicMBean</classname>, having care of calling the
+         <funcdef>
+            <function>setResource</function>
+         </funcdef>
+         method (see example below).
+      </para>
+      <para>
+         <example>
+            <title>Delegating to
+               <classname>AbstractDynamicMBean</classname> subclass
+            </title>
+            <programlisting>
+               <![CDATA[
+public class ComposedDynamic extends MyBaseClass implements DynamicMBean
+{
+   /* Create an AbstractDynamicMBean subclass */
+   private AbstractDynamicMBean delegate = new AbstractDynamicMBean()
+   {
+      protected MBeanAttributeInfo[] createMBeanAttributeInfo()
+      {
+         return new MBeanAttributeInfo[]
+         {
+            new MBeanAttributeInfo("Status", int.class.getName(), "The status", true, true, false),
+            new MBeanAttributeInfo("Enabled", boolean.class.getName(), "The enable status", true, false, true)
+         };
+      }
+
+      protected MBeanOperationInfo[] createMBeanOperationInfo()
+      {
+         return new MBeanOperationInfo[]
+         {
+            new MBeanOperationInfo("enable", "Enables this MBean", new MBeanParameterInfo[0], Void.class.getName(), MBeanOperationInfo.ACTION),
+            new MBeanOperationInfo("disable", "Disables this MBean", new MBeanParameterInfo[0], Void.class.getName(), MBeanOperationInfo.ACTION)
+         };
+      }
+   };
+
+   private int status;
+   private boolean enabled;
+
+   public ComposedDynamicMBean()
+   {
+      // Set the actual resource
+      delegate.setResource(this);
+   }
+
+   /* Implement the methods of DynamicMBean interface to delegate to the AbstractDynamicMBean subclass */
+
+   public Object getAttribute(String attribute) throws AttributeNotFoundException, MBeanException, ReflectionException
+   {
+      return delegate.getAttribute(attribute);
+   }
+
+   // Do the same with all other methods of DynamicMBean interface
+   ...
+
+   /* Methods of the third group that implements MBean functionality */
+
+   public void setStatus(int status)
+   {
+      this.status = status;
+   }
+
+   public int getStatus()
+   {
+      return status;
+   }
+
+   public boolean isEnabled()
+   {
+      return this.enabled;
+   }
+
+   public void enable()
+   {
+      this.enabled = true;
+   }
+
+   public void disable()
+   {
+      this.enabled = false;
+   }
+}
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         <classname>AbstractDynamicMBean</classname> can also be used for non-invasive management: if you already have a component
+         but you don't want to change it to implement a management interface, you can set it as target of a subclass of
+         <classname>AbstractDynamicMBean</classname> and provide the suitable metadata information.
+      </para>
+      <para>
+         <example>
+            <title>Subclassing
+               <classname>AbstractDynamicMBean</classname>
+            </title>
+            <programlisting>
+               <![CDATA[
+public class NonInvasiveDynamic extends AbstractDynamicMBean
+{
+   /* Methods of the second group that are overridden */
+   protected MBeanOperationInfo[] createMBeanOperationInfo()
+   {
+      return new MBeanOperationInfo[]
+      {
+         new MBeanOperationInfo("start", "Starts this MBean", new MBeanParameterInfo[0], Void.class.getName(), MBeanOperationInfo.ACTION),
+         new MBeanOperationInfo("stop", "Stops this MBean", new MBeanParameterInfo[0], Void.class.getName(), MBeanOperationInfo.ACTION)
+      };
+   }
+
+   protected String getMBeanDescription()
+   {
+      return "A non invasive DynamicMBean that manages resource";
+   }
+
+   /* Constructor that takes the managed resource */
+   public NonInvasiveDynamic(ExternalService service)
+   {
+      // Set the actual resource that this MBean represents.
+      setresource(service);
+   }
+
+/* Old main, before JMX
+   public static void main(String[] args) throws Exception
+   {
+      // Create the service
+      ExternalService service = new ExternalService();
+
+      // Start the service
+      service.start();
+   }
+*/
+   public static void main(String[] args) throws Exception
+   {
+      // Create the service
+      ExternalService service = new ExternalService();
+
+      MBeanServer server = MBeanServerFactory.createMBeanServer();
+      NonInvasiveDynamic mbean = new NonInvasiveDynamic(service);
+      ObjectName name = new ObjectName("domain:key=value");
+      server.registerMBean(mbean, name);
+
+      // Now start the service via JMX:
+      // Few lines more, but now the service is manageable !
+      server.invoke(name, "start", null, null);
+   }
+}
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         The example above shows how simple can be to plug JMX into already existing architectures, and how it is possible,
+         in few lines of code, to make services manageable (and remotely manageable with JSR 160) without even impacting
+         already existing service's code.
+      </para>
+   </section>
+</section>
+
+<section>
+   <title>Naming MBeans</title>
+   <para>
+      MX4J ships with two naming MBeans, the NamingService and the CosNamingService, that wrap as MBeans respectively
+      the rmiregistry and the tnameserv tools provided with the JDK.
+   </para>
+   <section>
+      <title>The NamingService MBean</title>
+      <para>
+         The NamingService MBean allows you to start the
+         rmiregistry in the same JVM as other MBeans, such as the RMI MBean (see examples in the documentation), or the
+         RMI adaptor.
+         <sbr/>
+         The MBean's class is
+         <classname>mx4j.tools.naming.NamingService</classname>.
+      </para>
+      <para>
+         The usage of the NamingService MBean does not require additional libraries, as all the needed classes are already
+         shipped with the JDK.
+      </para>
+
+      <section>
+         <title>Deployment</title>
+         <para>
+            The NamingService MBean is easily deployed into a JMX Agent. The following code snippet shows how to deploy it into
+            a JMX Agent.
+         </para>
+         <para>
+            <example>
+               <title>Deploying the NamingService MBean</title>
+               <programlisting>
+                  <![CDATA[
+MBeanServer server = MBeanServerFactory.createMBeanServer();
+ObjectName naming = new ObjectName("Naming:type=registry");
+server.createMBean("mx4j.tools.naming.NamingService", naming, null);
+               ]]>
+               </programlisting>
+            </example>
+         </para>
+         <para>
+            To use the NamingService MBean as rmiregistry, it must be started;
+            the NamingService MBean can be started and stopped at wish, simply by invoking the
+            <function>start()</function> and
+            <function>stop()</function> methods of the management interface.
+            <sbr/>
+         </para>
+         <para>
+            <example>
+               <title>Starting and stopping the NamingService MBean</title>
+               <programlisting>
+                  <![CDATA[
+Object proxy = MBeanServerInvocationHandler.newProxyInstance(server, naming, NamingServiceMBean.class, false);
+NamingServiceMBean mbean = (NamingServiceMBean)proxy;
+mbean.start();
+...
+mbean.stop();
+
+
+or using the MBeanServer:
+
+
+server.invoke(naming, "start", new Object[0], new String[0]);
+...
+server.invoke(naming, "stop", new Object[0], new String[0]);
+            ]]>
+               </programlisting>
+            </example>
+         </para>
+         <para>
+            It is also possible to specify the port on which the rmiregistry will run. Simply pass this parameter to
+            the constructor of the NamingService MBean. By default the rmiregistry runs on port 1099.
+         </para>
+         <para>
+            <example>
+               <title>Changing the default port</title>
+               <programlisting>
+                  <![CDATA[
+MBeanServer server = MBeanServerFactory.createMBeanServer();
+ObjectName naming = new ObjectName("Naming:type=registry");
+
+server.createMBean("mx4j.tools.naming.NamingService", naming, null, new Object[] {new Integer(2099)}, new String[] {"int"});
+
+
+or
+
+
+NamingService mbean = new NamingService(3099);
+server.registerMBean(mbean, naming);
+
+
+or via MLet file (specify the suitable codebase)
+
+
+<MLET CODE="mx4j.tools.naming.NamingService"
+      ARCHIVE="mx4j-tools.jar"
+      CODEBASE="../lib/">
+   <ARG TYPE="int" VALUE="4099">
+</MLET>
+               ]]>
+               </programlisting>
+            </example>
+         </para>
+         <para>
+            It is also possible to change the rmiregistry port at runtime. Just start the NamingService MBean, stop it after a while,
+            change the port it runs on, and restarting it, so that it will accept requests on the new port.
+            <sbr/>
+            Below you can see the steps needed to perform this change.
+         </para>
+         <para>
+            <example>
+               <title>Changing the port at runtime</title>
+               <programlisting>
+                  <![CDATA[
+MBeanServer server = MBeanServerFactory.createMBeanServer();
+ObjectName naming = new ObjectName("Naming:type=registry");
+server.createMBean("mx4j.tools.naming.NamingService", naming, null);
+Object proxy = MBeanServerInvocationHandler.newProxyInstance(server, naming, NamingServiceMBean.class, false);
+NamingServiceMBean mbean = (NamingServiceMBean)proxy;
+
+mbean.start();
+...
+mbean.stop();
+mbean.setPort(5099);
+mbean.start();
+            ]]>
+               </programlisting>
+            </example>
+         </para>
+      </section>
+   </section>
+
+   <section>
+      <title>The CosNamingService MBean</title>
+      <para>
+         The CosNamingService MBean is very similar to the NamingService MBean: it allows you to start
+         tnameserv in the same JVM as other MBeans.
+         <sbr/>
+         The MBean's class is
+         <classname>mx4j.tools.naming.CosNamingService</classname>.
+      </para>
+      <para>
+         The usage of the CosNamingService MBean does not require additional libraries, as all the needed classes are already
+         shipped with the JDK.
+      </para>
+
+      <section>
+         <title>Deployment</title>
+         <para>
+            The CosNamingService MBean is easily deployed into a JMX Agent, in a way very similar to the NamingService MBean.
+         </para>
+         <para>
+            Exactly like the NamingService MBean, the CosNamingService MBean must be first registered in the MBeanServer and then
+            started using the management interface it exposes.
+            <sbr/>
+            There is the possibility to set the port on which the service will listen for incoming connections, exactly like the
+            NamingService MBean.
+         </para>
+         <para>
+            One difference between the CosNamingService and the NamingService MBeans is that the latter provides and easy API
+            to be implemented, so that creating, starting and stopping it can be implemented easily by the MX4J team,
+            while the former does not.
+         </para>
+         <para>
+            A consequence of this is that tnameserv is started using
+            <funcdef>
+               <function>Runtime.exec()</function>
+            </funcdef>
+            and stopped by killing the process created when starting the MBean.
+         </para>
+         <para>
+            Since starting and stopping an external process may result in the
+            <funcdef>
+               <function>start</function>
+            </funcdef>
+            <void/> and
+            <funcdef>
+               <function>stop</function>
+            </funcdef>
+            <void/> returning
+            <emphasis>before</emphasis> the process is really started (or stopped),
+            it is recommended to sleep some time after start() and stop() in order to let
+            tnameserv to start and stop completely.
+            <sbr/>
+            A suggested value for this delay may be few seconds (1000-5000 milliseconds), but the value strongly depends on the
+            hardware and operative system.
+         </para>
+      </section>
+   </section>
+</section>
+
+<section>
+   <title>Mailer MBean</title>
+   <section>
+      <title>Introduction</title>
+      <para>
+         The SMTP MBean is meant to be used to send emails from your JMX application.
+         The MBean's class is
+         <classname>mx4j.tools.mail.SMTP</classname>.
+      </para>
+      <para>
+         You can use it in basically two ways:
+         <itemizedlist>
+            <listitem>
+               <para>
+                  Directly by calling the sendMail method
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  By listening notifications, for instance from a Timer or Monitor
+               </para>
+            </listitem>
+         </itemizedlist>
+      </para>
+      <para>
+         The usage of the MBean requires that you have JavaMail and the Java Activation Framework.
+         The MBean has been tested with JavaMail 1.2 and JAF 1.0.1.
+      </para>
+   </section>
+
+   <section>
+      <title>Configuration</title>
+      <para>
+         The MBean has quite many attributes to work but as a minimum you should set up the
+         <emphasis>serverHost</emphasis>
+         and
+         <emphasis>To</emphasis>. After that you can start sending emails.
+      </para>
+      <para>
+         If your	server requires authentication, set the
+         <emphasis>LoginToServer</emphasis> attribute to true
+         and fill the
+         <emphasis>ServerUserName</emphasis> and
+         <emphasis>ServerPassword fields</emphasis>
+      </para>
+      <para>
+         You can also set the source address by setting the
+         <emphasis>FromAddress</emphasis> field as well
+         as the
+         <emphasis>FromName</emphasis> field. The destination attributes can be set setting a comma separated
+         list of addresses by using the
+         <emphasis>To</emphasis>,
+         <emphasis>Cc</emphasis> and
+         <emphasis>Bcc</emphasis> attributes.
+         The addresses are not checked until a mail is actually sent, but in case some are not well formed, to those who are will be sent anyway
+      </para>
+      <para>
+         To make the MBean to listen for notifications set the
+         <emphasis>ObservedObject</emphasis> field. The SMTPMBean
+         will register iteself as listener of that MBean and when a notification is received it will send the mail.
+         If you set the
+         <emphasis>NotificationName</emphasis> field, only notification names with that type will be
+         valid to send a mail. For instance "javax.management.monitor.string.differ"
+      </para>
+   </section>
+   <section>
+      <title>Keyword expanding</title>
+      <para>
+         To make the content of the mail more customizable you can include keyword expansion
+         on the
+         <emphasis>Subject</emphasis>, and
+         <emphasis>Content</emphasis> field. The keywords
+         are special words set in between of $ signs. e.g. $date$. Those keywords will be replaced
+         before the mail is sent, so you can get text containing more information.
+         The recognized keywords are:
+         <itemizedlist>
+            <listitem>
+               <para>
+                  <emphasis>$date$</emphasis> Expands to the current date formatted with locale format
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  <emphasis>$time$</emphasis> Expands to the current time formatted with locale format
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  <emphasis>$datetime$</emphasis> Expands to the current datetime formatted with locale format
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  <emphasis>$observed$</emphasis> Expands to the observed MBean's ObjectName which triggered the mail
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  <emphasis>$notification$</emphasis> Expands to the notification type which triggered the mail
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  <emphasis>$objectname$</emphasis> Expands to the SMTPMBean's ObjectName
+               </para>
+            </listitem>
+         </itemizedlist>
+      </para>
+   </section>
+</section>
+
+<section>
+   <title>Jython MBean</title>
+   <section>
+      <title>Introduction</title>
+      <para>
+         The JythonRunner MBean can be used to execute jython scripts. The main objective is
+         to use them for management tasks which are easiliy handled as scripts and that could be
+         modified and deployed at runtime.
+         The MBean's class is
+         <classname>mx4j.tools.jython.JythonRunner</classname>.
+      </para>
+      <para>
+         You can use it in two ways:
+         <itemizedlist>
+            <listitem>
+               <para>
+                  By calling the runScript method
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  By listening notifications, for instance from a Timer or Monitor
+               </para>
+            </listitem>
+         </itemizedlist>
+      </para>
+      <para>
+         The usage of the MBean requires that you have jython installed. You can get a copy
+         at
+         <ulink url="http://www.jython.org">http://www.jython.org</ulink>. Jython is distributed
+         (as version 2.1) on a class file which is the installer and once execute will install the
+         jython distribution, e.g. at /usr/local/jython-2.1 or C:\Java\jython-2.1. Jython can be run in
+         two different ways depending on whether you want to use the jython standard library.
+
+         <para>If you want to use the standard librarie, add the jython.jar as in the installation dir to the classpath. e.g.
+            <para>java -cp /usr/local/jython-2.1/jython.jar:mx4j-jmx.jar:mx4j-tools.jar</para>
+
+            In this way jython will be able to find the install dir and load the libraries from there. You can get the same effect by
+            passing a python.path variable as:
+            <para>java -Dpython.path=/usr/local/jython-2.1 -cp jython.jar:mx4j-jmx.jar:mx4j-tools.jar</para>
+         </para>
+         <para>If you don't need the standard libraries (and that can be the case for many JMX tasks, it is enough to have the jython.jar
+            in your system classpath</para>
+      </para>
+   </section>
+
+   <section>
+      <title>Configuration</title>
+      <para>
+         The MBean has a few parameters which can be used to configure the MBean. This includes the
+         ObservedObjectName and Notification Name used to configure the MBean to listen for notifications.
+         The Script and ScriptFile parameters point to the content of the script. For simple scripts
+         you could just use the Script parameter. For morke comple scripts you are better of pointing to a file.
+         The ScriptFile is actually a URL and therefore can point to http locations
+      </para>
+   </section>
+   <section>
+      <title>Built-in functions</title>
+      <para>
+         To ease the script constructions some variables, class and functions are readily
+         available to your script. The most important one is
+         <emphasis>server</emphasis> which point
+         to the current MBean server. The server variable IS a MBeanServer object and all methods
+         are valid. You can write scripts like:
+         <programlisting>
+            # write all the "test:name=test" mbean operations
+            [print operation for operation in server.getMBeanInfo(ObjectName("test:name=test")).operations]
+         </programlisting>
+         Aditionally all the javax.management.* class are imported making objects like ObjectName
+         or Attribute already available.
+      </para>
+      <para>
+         There are also some utility functions and classes:
+         <itemizedlist>
+            <listitem>
+               <para>
+                  <classname>proxy</classname> The proxy class wraps a objectname making it easier
+                  to access (It is equivalent to the MBeanServerInvocationHandler class). You can directly retrieve and modify attributes and invoke mathods. For instance:
+                  <programlisting>
+                     #
+                     # Assume the MBean with ObjectName Test:name=jython has name and time attributes and a method start()
+                     #
+                     o = ObjectName("Test:name=jython")
+                     p = proxy(o)
+                     # you can access functions directly
+                     print p.name
+                     p.time = 12343
+                     # also works with functions
+                     p.start()
+                  </programlisting>
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  <function>mbeans(query)</function> Returns a list of the mbeans in the server which
+                  are in the query. The query is of the form "*:*". It can be omited and the function will
+                  return all the mbeans
+               </para>
+            </listitem>
+            <listitem>
+               <para>
+                  <function>instances(classname, query)</function> Returns a list of the mbeans in the server which
+                  are instances of classname. The server accepts also an optional query method.
+               </para>
+            </listitem>
+         </itemizedlist>
+      </para>
+   </section>
+</section>

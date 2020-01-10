@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<chapter>
+	<title>MX4J and JMX Overview</title>
+		&introduction_en;
+		&license_en;
+</chapter>
+<chapter>
+   <title>JMX 1.2 Explained</title>
+      &jmx-explained_en;
+</chapter>
+<chapter>
+   <title>JSR 160 (JMX Remoting) Explained</title>
+      &jsr160-explained_en;
+</chapter>
+<chapter>
+	<title>MX4J Extensions and utilities</title>
+		&extensions_en;
+</chapter>
+<chapter>
+	<title>MX4J HTTP Adaptor</title>
+		&http-adaptor_en;
+		&xslt-processor_en;
+</chapter>
+<chapter>
+	<title>MX4J Tools</title>
+      &tools_en;
+</chapter>
+<chapter>
+	<title>MX4J Examples</title>
+      &examples_en;
+</chapter>
+<chapter>
+	<title>FAQ</title>
+		&faq_en;
+</chapter>
+<chapter>
+	<title>MX4J Developer's guide</title>
+		&dev-guide_en;
+</chapter>

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN" "docbook/docbookx.dtd" [
+	<!ENTITY english SYSTEM "english/index.xml">
+
+	<!ENTITY license_en SYSTEM "english/license.xml">
+	<!ENTITY introduction_en SYSTEM "english/introduction.xml">
+	<!ENTITY extensions_en SYSTEM "english/extensions.xml">
+	<!ENTITY dev-guide_en SYSTEM "english/dev-guide.xml">
+	<!ENTITY http-adaptor_en SYSTEM "english/http-adaptor.xml">
+	<!ENTITY xslt-processor_en SYSTEM "english/xslt-processor.xml">
+	<!ENTITY tools_en SYSTEM "english/tools.xml">
+	<!ENTITY examples_en SYSTEM "english/examples.xml">
+	<!ENTITY faq_en SYSTEM "english/faq.xml">
+	<!ENTITY jmx-explained_en SYSTEM "english/jmx-explained.xml">
+	<!ENTITY jsr160-explained_en SYSTEM "english/jsr160-explained.xml">
+]>
+<book>
+	<title>MX4J English Documentation</title>
+	&english;
+</book>

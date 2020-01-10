@@ -1,0 +1,234 @@
+<section>
+	<title>XSLTProcessor</title>
+	<section>
+		<title>Introduction</title>
+		<para>
+			The XSLTProcessor can be used to customize the output of the HttpAdaptor.
+			It basically takes the XML output of the HttpAdaptor and process it by using
+			XSL. This enables you to customize the look as you wish. Normally the processing
+			will produce HTML files you can display in a standard browser.
+		</para>
+		<para>
+			The actual files to be used are specified via the File property. This points to dir
+			where the template files are. Optionally you can package all your files in a .jar
+			or .zip file and deliver that instead.
+		</para>
+		<para>
+			The processor identifies which xsl template to use from the HTTP request. i.e.
+			if the request is mbean it will try to find a mbean.xsl file and use it to process
+			the resulting XML tree. You can modify this by passing a template variable. For instance.
+			<emphasis>http://host:port/mbean?objectname=Test:name=test1&amp;template=testmbean</emphasis>
+			In that case the HttpAdaptor will build a mbean resulting tree but instead of being
+			processed using the mbean.xsl, it will use testmbean.xsl.
+		</para>
+		<para>
+			An identity transformation file is included in the distribution and you can use it to get the original XML message.
+			For instance<emphasis>http://host:port/mbean?objectname=Test:name=test1&amp;template=identity</emphasis>
+		</para>
+		<para>
+			If you need to deliver extra files like images or raw HTML, you can add it to the
+			target filesystem. The processor knows a few MIME types which are classified according to
+			the extension. This includes:
+			<itemizedlist mark="opencircle">
+				<listitem>
+					<para>
+						GIF images: extension=".gif", MIME type: "image/gif"
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						PNG images: extension=".png", MIME type: "image/png"
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						JPG images: extension=".jpg", MIME type: "image/jpg"
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						HTML raw files: extension=".html,.html", MIME type: "text/html"
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						HTML raw files: extension=".css", MIME type: "text/css"
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						XML files: extension=".xml", MIME type: "text/xml"
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						XSL files: extension=".xsl", MIME type: "text/xsl"
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						etc...
+					</para>
+				</listitem>
+			</itemizedlist>
+		</para>
+		<para>
+			You can add extra MIME type with the addMimeType method. If a MIME type is not found
+			for a given extension a text/plain type is assigned
+		</para>
+	</section>
+	<section>
+		<title>Compatibility</title>
+		<para>
+			For the XSLTProcessor to work you need a JAXP parser (Which you need for using the
+			raw HttpAdaptor too) and a TRaX (Transformation API for XML) library. In principle
+			anyone should work but there are differences between the different implementations
+			and versions. It follows some tested and working platforms:
+			<itemizedlist>
+				<listitem>
+					Java SDK 1.4.0, using the bundled parser and transformation library
+				</listitem>
+				<listitem>
+					Java SDK 1.4.1, using the bundled parser and transformation library
+				</listitem>
+				<listitem>
+					Java SDK 1.4.0 + saxon 6.5.2, Working since MX4j version 1.1.1. Not
+					working with MX4J version 1.1
+				</listitem>
+				<listitem>
+					Java SDK 1.4.0 + saxon 7.2, Working since MX4j version 1.1.1.
+				</listitem>
+				<listitem>
+					Java SDK 1.4.0 + jd.xslt 1.2.8, Working since MX4j version 1.1.1.
+				</listitem>
+			</itemizedlist>
+			<para>
+				Combinations reported not to work
+			</para>
+			<itemizedlist>
+				<listitem>
+					Usage of xalan 2.0 and xerces 1.2.3 has been reported as not working
+				</listitem>
+			</itemizedlist>
+		</para>
+	</section>
+	<section>
+		<title>Attributes</title>
+		<para>
+			The XSLTProcessor has the following attributes and operations that you can use to customize
+			the operation.
+			<itemizedlist mark="opencircle">
+				<listitem>
+					<para>
+						<emphasis>File:</emphasis> Determines where to look for xsl files. If the
+						target file is a dir, it assumes that xsl files are located on the dir. Otherwise
+						if it points to a .jar or .zip files, it assumes that the files are located inside.
+						Pointing it to a file system is especially useful for testing.
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						<emphasis>PathInJar:</emphasis> Sets the dir in the jar file where xsl files reside
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						<emphasis>UseJar:</emphasis> Read-only. It tells whether the processor is reading from a jar file
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						<emphasis>UsePath:</emphasis> Read-only. It tells whether the processor is reading from a dir
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						<emphasis>UseCache:</emphasis> Indicates whether to cache the transformation objects. This
+						speeds-up the process. It is usually set to true, but you can set it to false for easier testing
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						<emphasis>Locale:</emphasis> It's the locale used for i18n pruposes. By default it is "en"
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						<emphasis>LocaleString:</emphasis> Sets the locale by using a String
+					</para>
+				</listitem>
+				<listitem>
+					<para>
+						<emphasis>addMimeType:</emphasis> Adds a mime type in the form of a addMimeType(".pdf", "application/pdf"). The XSLTProcessor
+						will use th given MIME type for files with the given extension
+					</para>
+				</listitem>
+			</itemizedlist>
+		</para>
+			<para>
+				For example you can set the attributes as follow:
+					<programlisting>
+	<![CDATA[
+ObjectName processorName = new ObjectName("Server:name=XSLTProcessor");
+server.createMBean("mx4j.tools.adaptor.http.XSLTProcessor", processorName, null);
+
+// set it to use a dir
+server.setAttribute(processorName, new Attribute("File", "/home/tibu/devel/mx4j/src/core/mx4j/adaptor/http/xsl"));
+
+// set it to use a compressed file
+server.setAttribute(processorName, new Attribute("File", "/home/tibu/skins.jar"));
+
+// set the target dir
+server.setAttribute(processorName, new Attribute("PathInJar", "/mx4j/adaptor/http/xsl"));
+
+// set not to use cache
+server.setAttribute(processorName, new Attribute("UseCache", Boolean.FALSE));
+
+// set not to use cache
+server.setAttribute(processorName, new Attribute("LocaleString", "fi"));
+
+// adds a mime type
+server.invoke(processorName, "addMimeType", new Object[] {".pdf", "application/pdf"}, new String[] {"java.lang.String", "java.lang.String"});
+	]]>
+				</programlisting>
+			</para>
+	</section>
+	<section>
+		<title>XSL Development</title>
+		<para>
+			If you want to develop your own GUI, please refer to the xsl sources of the
+			GUI delivered in the mx4j-tools.jar file
+		</para>
+		<para>
+			An important element to help you in the development are implicit params passed to
+			the template. This includes all the request variables in the form of request.variable
+			params. For instance with the follwing request
+			<para>
+			<emphasis>http://host.port/mbean?objectname=Test:name=test1&amp;template=testmbean</emphasis>
+			</para>
+			<para>
+			There will be two paramaters request.objectname and request.template
+			</para>
+			<para>
+			Besides, there is alwyas a locale variable as request.locale. Notice that you can explicitly set the
+			locale in a request passing the locale varible like
+			<emphasis>http://host.port/mbean?objectname=Test:name=test1&amp;template=testmbean&amp;locale=de</emphasis>
+			</para>
+		</para>
+	</section>
+	<section>
+		<title>Internationalization</title>
+		<para>
+			Since MX4J version 1.1.1 the XSLTProcessor supports internationalization. This is done
+			replacing the previously hardcoded strings with a call to the 'str' template on the
+			common.xsl. The 'str' template takes an id which points to the string actually displayed on
+			screen. An xml file contains the strings indexed by id. With the current distribution a
+			strings_en.xml file is shipped containing the standard english translation.
+		</para>
+		<para>
+			If you want to create your own translation add or replace strings_XX.xml files by your
+			own translation on the jar file. The strings accept
+			a replacement of up to two parameters which are indicated wth brackets like {0} or {1}
+		</para>
+	</section>
+</section>

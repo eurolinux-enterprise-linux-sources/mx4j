@@ -1,0 +1,706 @@
+<section>
+   <title>Services</title>
+   <section>
+      <title>The Relation Service example</title>
+      <section>
+         <title>Introduction</title>
+         <para>
+            A full description of the RelationService, what it does and why it does it can be found in the
+            <ulink url="http://java.sun.com/products/JavaManagement/index.html">JMX Specifications.</ulink>
+         </para>
+         <para>
+            The example java source files can be found in the examples directory under services/relation, they include:
+            <itemizedlist>
+               <listitem>
+                  <classname>RelationServiceExample</classname> (the main class)
+               </listitem>
+               <listitem>
+                  <classname>SimpleBooks</classname>
+               </listitem>
+               <listitem>
+                  <classname>SimpleOwner</classname>
+               </listitem>
+               <listitem>
+                  <classname>SimplePersonalLibrary</classname> (which extends the
+                  <classname>javax.mangement.relation.RelationTypeSupport</classname> and provides the definitions of our roles)
+               </listitem>
+            </itemizedlist>
+         </para>
+      </section>
+      <section>
+         <title>Simple use-case for the example</title>
+         <para>
+            <itemizedlist>
+               <listitem>1)Adding Books Use-Case: Main Success Scenario:</listitem>
+            </itemizedlist>
+            <emphasis>A user adds 1 book to his personal library, he already has 3, a check is done and it is determined that he is allowed 4 books, there are no problems and he can add the book.</emphasis>
+            <itemizedlist>
+               <listitem>2)Adding Books Use-Case: Alternate Scenarios:</listitem>
+            </itemizedlist>
+            <emphasis>Our user decides he would like to add another book, as he has defined the number of books to be minimum 1 and maximum 4, and he is now trying to add a fifth, he is not allowed to add the extra book..</emphasis>
+            <itemizedlist>
+               <listitem>3)Removing Books Use-Case: Main Success Scenario:</listitem>
+            </itemizedlist>
+            <emphasis>A User decides to remove 3 old books from his personal-library. As he has defined the number of books he is allowed as to being between 1 and 4 there are no problems, the books are removed and he can no longer read or write to them, from the RelationService..</emphasis>
+            <itemizedlist>
+               <listitem>4)Removing Books Use-Case: Alternate Scenario:</listitem>
+            </itemizedlist>
+            <emphasis>The book owner decides to remove all his books. The relation is invalidated and he can no longer access his records as they have been removed from the RelationService, including his role as Owner..</emphasis>
+         </para>
+      </section>
+      <section>
+         <title>Code Usage</title>
+         <para>
+            Before any relations can be defined the RelationService must be registered in the MBeanServer.
+         </para>
+         <example>
+            <title>Creating the RelationService</title>
+            <programlisting><![CDATA[
+import javax.management.relation.RelationService;
+
+MBeanServer server = MBeanServerFactory.createMBeanServer();
+String className = "javax.management.relation.RelationService";
+ObjectName objectName = new ObjectName("Relations:name=RelationService");
+
+// The boolean value is to enable a purge of relations to determine invalid relations when an unregistration occurs of MBeans
+Object[] params = {new Boolean(true)};
+String[] signature = {"boolean"};
+server.createMBean(className, objectName, null, params, signature);
+               ]]></programlisting>
+         </example>
+         <para>
+            Once we have the RelationService registered we can then create in the server our MBeans that will be playing the roles in our use-case scenarios. This being done we can proceed to adding our RelationType
+            <classname>SimplePersonalLibrary</classname> which must extend
+            <classname>javax.management.relation.RelationTypeSupport</classname>. This class is not registered in the MBeanServer, it is merely a simple way of providing the definitions of our Roles in the RelationService, an example of adding a RelationType in the RelationService follows:
+         </para>
+         <example>
+            <title>Adding a RelationType</title>
+            <programlisting><![CDATA[
+// SimplePersonalLibrary is our RelationTypeSupport class
+String relationTypeName = "my_library";
+SimplePersonalLibrary library = new SimplePersonalLibrary(relationTypeName);
+
+Object[] params = {library};
+String[] signature = {"javax.management.relation.RelationType"};
+
+server.invoke(objectName, "addRelationType", params, signature);
+               ]]></programlisting>
+         </example>
+         <para>
+            Our next step will be to start filling the roles we defined in our support class and adding the MBeans up to the maximum number we defined our SimplePersonalLibrary class. This means registering the MBeans first with MBeanServer. Once registered. we can add them within our Roles...		</para>
+         <example>
+            <title>Building Roles</title>
+            <programlisting><![CDATA[
+// building the owner Role
+ArrayList ownerList = new ArrayList();
+ownerList.add(ownerName1);  // can only add owner to an owner role cardinality defined as 1
+Role ownerRole = new Role("owner", ownerList);
+
+// building the book role
+ArrayList bookList = new ArrayList();
+// we can have between 1 and 4 books more than 4 invalidates out relation and less than 1 invalidates it
+bookList.add(bookName1);
+bookList.add(bookName2);
+bookList.add(bookName3);
+Role bookRole = new Role("books", bookList);
+
+// add our roles to the RoleList
+RoleList libraryList = new RoleList();
+libraryList.add(ownerRole);
+libraryList.add(bookRole);
+
+// now create the relation
+Object[] params = {personalLibraryId, libraryTypeName, libraryList};
+String[] signature = {"java.lang.String", "java.lang.String", "javax.management.relation.RoleList"};
+m_server.invoke(m_relationObjectName, "createRelation", params, signature);
+               ]]></programlisting>
+         </example>
+         <para>
+            We are done a note about the alternate scenarios: Once Role cardinality has been invalidated the relation is removed from the RelationService and can no longer be accessed via the RelationService though any MBeans registered in the MBeanServer can still be accessed individually.
+         </para>
+      </section>
+      <section>
+         <title>Using Examples from the JMX Reference Implementation</title>
+         <para>
+            The RelationService examples which can be downloaded from the
+            <ulink url="http://java.sun.com/products/JavaManagement/index.html">JMX</ulink> website will run in the MX4J implementation. The few changes required are due to the fact that
+            <emphasis>MX4J</emphasis> implements the accessors of MBeans as
+            <funcdef>server.getAttribute(..)</funcdef> and
+            <funcdef>server.setAttribute(...)</funcdef> whereas the JMX implements all as method calls using
+            <funcdef>server.invoke(..)</funcdef>
+         </para>
+         <para>
+            To be able to use the Examples from the JMX download. A list of the few changes required for the
+            <classname>RelationAgent</classname> follows:
+         </para>
+         <para>
+            <itemizedlist>
+               <listitem>Remove: import com.sun.jdmk.Trace;</listitem>
+               <listitem>Remove: Trace.parseTraceProperties();</listitem>
+               <listitem>Change all calls for
+                  <itemizedlist mark="opencircle">
+                     <listitem>
+                        <funcdef>getAllRelationTypeNames</funcdef>
+                     </listitem>
+                     <listitem>
+                        <funcdef>getRelationServiceName</funcdef>
+                     </listitem>
+                     <listitem>
+                        <funcdef>getRelationId</funcdef>
+                     </listitem>
+                     <listitem>
+                        <funcdef>getAllRelationIds</funcdef>
+                     </listitem>
+                     <listitem>
+                        <funcdef>getReferencedMBeans</funcdef>  Note: except where the call comes from an external relation(represented by a subclass of
+                        <classname>javax.management.relation.RelationSupport</classname> or a type of
+                        <classname>javax.management.relation.Relation</classname>
+                     </listitem>
+                     <listitem>
+                        <funcdef>getRelationTypeName</funcdef> Note: same as above
+                     </listitem>
+                     <listitem>
+                        <funcdef>getAllRoles</funcdef> Note: same as above
+                     </listitem>
+                     <listitem>
+                        <funcdef>setRole</funcdef> Note: same as above
+                     </listitem>
+                  </itemizedlist>
+                  from
+                  <funcdef>server.invoke(...)</funcdef> to
+                  <funcdef>server.getAttribute(....) , server.setAttribute(...) depending on whether it sets or gets.</funcdef>
+               </listitem>
+            </itemizedlist>
+         </para>
+      </section>
+   </section>
+</section>
+<section>
+   <title>MBeans</title>
+   <section>
+      <title>RMI MBean example</title>
+      <section>
+         <title>Introduction</title>
+         <para>
+            The purpose of this example is to give some guideline on how to expose RMI remote objects also as MBeans.
+         </para>
+         <para>
+            This will give to server administrators the possibility to manage RMI remote objects in the JMX sense. This
+            means that may be possible to start, stop and restart the service implemented by the remote object; and also
+            checking if it is running, or ask to reload configurations files.
+         </para>
+      </section>
+      <section>
+         <title>The example classes</title>
+         <para>
+            The example java source files can be found in the examples directory under mbeans/rmi, they include:
+            <itemizedlist>
+               <listitem>
+                  <classname>Server</classname> (the class that starts the remote service)
+               </listitem>
+               <listitem>
+                  <classname>Client</classname> (the client class)
+               </listitem>
+               <listitem>
+                  <classname>MyRemoteService</classname> (the remote interface)
+               </listitem>
+               <listitem>
+                  <classname>MyRemoteServiceObjectMBean</classname> (the management interface)
+               </listitem>
+               <listitem>
+                  <classname>MyRemoteServiceObject</classname> (the MBean that implements the remote interface)
+               </listitem>
+            </itemizedlist>
+         </para>
+      </section>
+      <section>
+         <title>Understanding the example</title>
+         <para>
+            The remote object is, at the same time an MBean and an RMI remote object.
+         </para>
+         <para>
+            Clients can see it through 2 interfaces: users of the service see it through the
+            <emphasis>remote interface</emphasis>
+            (
+            <classname>MyRemoteService</classname>), while management application (such as the HTTP adaptor)
+            see it through the
+            <emphasis>management interface</emphasis> (
+            <classname>MyRemoteServiceObjectMBean</classname>).
+            <sbr/>
+            The remote interface contains only one method:
+         </para>
+         <para>
+            <funcdef>public void
+               <function>sayHello(String name)</function>
+            </funcdef>
+         </para>
+         <para>
+            that will execute client's requests.
+            <sbr/>
+            The management interface, conversely, contains 3 methods:
+         </para>
+         <para>
+            <funcdef>public void
+               <function>start()</function>
+            </funcdef>
+            <sbr/>
+            <funcdef>public void
+               <function>stop()</function>
+            </funcdef>
+            <sbr/>
+            <funcdef>public boolean
+               <function>isRunning()</function>
+            </funcdef>
+         </para>
+         <para>
+            that will be used by management application such as the HTTP adaptor.
+         </para>
+         <para>
+            Notice that users of the remote interface cannot invoke methods of the management interface, as well as management
+            application cannot invoke methods of the remote interface.
+         </para>
+      </section>
+
+      <section>
+         <title>The implementation</title>
+         <para>
+            The purpose of the
+            <classname>Server</classname> class is only to start a JMX Agent by instantiating the MBeanServer,
+            register the service we want to expose, and starting it.
+         </para>
+         <para>
+            <example>
+               <title>The
+                  <classname>Server</classname> class
+               </title>
+               <programlisting>
+                  <![CDATA[
+public class Server
+{
+   public static void main(String[] args) throws Exception
+   {
+      MBeanServer server = MBeanServerFactory.createMBeanServer();
+
+      ObjectName name = new ObjectName("examples:type=remote");
+      MyRemoteServiceObject remote = new MyRemoteServiceObject();
+      server.registerMBean(remote, name);
+
+      MyRemoteServiceObjectMBean managed = (MyRemoteServiceObjectMBean)MBeanServerInvocationHandler.newProxyInstance(server, name, MyRemoteServiceObjectMBean.class, false);
+      managed.start();
+   }
+}
+               ]]>
+               </programlisting>
+            </example>
+         </para>
+         <para>
+            The remote object, instance of
+            <classname>MyRemoteServiceObject</classname> class, is worth some more detail.
+            <sbr/>
+            First notice that it extends
+            <classname>java.rmi.server.RemoteServer</classname> and not
+            <classname>java.rmi.server.UnicastRemoteObject</classname>. This is done to avoid that the object is automatically
+            exported to the RMI runtime when creating it, since we want to control the export and unexport via the
+            <function>start()</function> and
+            <function>stop()</function> methods of the management interface.
+            <sbr/>
+            Second, notice the symmetry of the
+            <function>start()</function> and
+            <function>stop()</function> methods:
+            <function>start()</function> export the object to the RMI runtime and binds it in the naming, while
+            <function>stop()</function>
+            unbinds it from the naming and unexport it from the RMI runtime.
+         </para>
+         <para>
+            <example>
+               <title>The
+                  <classname>MyRemoteServiceObject</classname> class
+               </title>
+               <programlisting>
+                  <![CDATA[
+public class MyRemoteServiceObject extends RemoteServer implements MyRemoteService, MyRemoteServiceObjectMBean
+{
+   private boolean m_running;
+
+   public MyRemoteServiceObject() throws RemoteException {}
+
+   public void sayHello(String name) throws RemoteException
+   {
+      System.out.println("Hello, " + name);
+   }
+
+   public void start() throws Exception
+   {
+      if (!m_running)
+      {
+         UnicastRemoteObject.exportObject(this);
+         InitialContext ctx = new InitialContext();
+         ctx.rebind(JNDI_NAME, this);
+         m_running = true;
+         System.out.println("My remote service started successfully");
+      }
+   }
+
+   public void stop() throws Exception
+   {
+      if (m_running)
+      {
+         InitialContext ctx = new InitialContext();
+         ctx.unbind(JNDI_NAME);
+         UnicastRemoteObject.unexportObject(this, false);
+         m_running = false;
+         System.out.println("My remote service stopped successfully");
+      }
+   }
+
+   public boolean isRunning()
+   {
+      return m_running;
+   }
+}
+               ]]>
+               </programlisting>
+            </example>
+         </para>
+         <para>
+            Thus, will be possible to start the service via a management application and let it available to users;
+            and will be possible to stop it, maybe changing some configuration file (not in this simple example, but you
+            got the picture), and restarting it,
+            <emphasis>WITHOUT</emphasis> shutting down other services that may have
+            been started by the same JMX Agent.
+         </para>
+         <para>
+            The implementation of the
+            <function>sayHello(String name)</function> method is straightforward, as well as
+            the
+            <function>isRunning()</function> one that, accessible from management applications, returns if the
+            service is running or not.
+         </para>
+      </section>
+
+      <section>
+         <title>Compiling the example files</title>
+         <para>
+            The above classes must be compiled using
+            <emphasis>javac</emphasis>, and the
+            <classname>MyRemoteServiceObject</classname> class
+            must be compiled using
+            <emphasis>rmic</emphasis>.
+         </para>
+         <para>
+            Let's suppose you unpack the MX4J distribution in the mx4j-
+            <emphasis>ver</emphasis> directory; from this directory you issue these
+            commands:
+         </para>
+         <para>
+            C:\mx4j-
+            <emphasis>ver</emphasis>>javac -classpath lib\mx4j-jmx.jar examples\mbeans\rmi\*.java
+            <sbr/>
+            C:\mx4j-
+            <emphasis>ver</emphasis>>rmic mx4j.examples.mbeans.rmi.MyRemoteServiceObject
+         </para>
+      </section>
+      <section>
+         <title>Running the example</title>
+         <para>
+            To run the example, three consoles are needed:
+            <itemizedlist>
+               <listitem>One for the
+                  <emphasis>rmiregistry</emphasis>
+               </listitem>
+               <listitem>One for the server</listitem>
+               <listitem>One for the client</listitem>
+            </itemizedlist>
+         </para>
+         <para>
+            For the rmiregistry, you need to have in the classpath the RMI stub of the
+            <classname>MyRemoteServiceObject</classname>
+            class you just compiled with
+            <emphasis>rmic</emphasis>. Then you can start it by typing the following command:
+         </para>
+         <para>
+            C:\mx4j-
+            <emphasis>ver</emphasis>>set classpath=.
+            <sbr/>
+            C:\mx4j-
+            <emphasis>ver</emphasis>>rmiregistry
+         </para>
+         <para>
+            For the server, you need all the compiled classes (apart for the
+            <classname>Client</classname> class),
+            mx4j-jmx.jar (the JMX implementation), and a suitable
+            <emphasis>jndi.properties</emphasis> file (there is a default
+            one shipped with this example) in the classpath. Then you can start the server with the following command:
+         </para>
+         <para>
+            C:\mx4j-
+            <emphasis>ver</emphasis>>java -cp .;examples;lib\mx4j-jmx.jar mx4j.examples.mbeans.rmi.Server
+         </para>
+         <para>
+            For the client, you need the
+            <classname>Client</classname> class, the remote interface and the RMI stub, and a suitable
+            <emphasis>jndi.properties</emphasis> file (there is a default one shipped with this example).
+            Then you can start the client with the following command:
+         </para>
+         <para>
+            C:\mx4j-
+            <emphasis>ver</emphasis>>java -cp .;examples mx4j.examples.mbeans.rmi.Client
+         </para>
+      </section>
+   </section>
+</section>
+<section>
+   <title>Tools</title>
+   <section>
+      <title>Using XDoclet</title>
+      <section>
+         <title>Introduction</title>
+         <para>
+            MX4J provides a way to generate source code of MBean interfaces and descriptions using some custom javadoc comments in
+            source code. This source generation is done with the help of
+            <ulink url="http://xdoclet.sourceforge.net">XDoclet</ulink>.
+            It is recommended to look at the example included in the distribution for getting started with this feature.
+         </para>
+      </section>
+      <section>
+         <title>Preparing Ant</title>
+         <para>
+            In order to generate the source code, XDoclet must be copied into the directory where all libraries are. This is usually
+            the lib subdirectory of the project which will be referred as the Ant variable
+            <property>${lib}</property> from now on.
+            A path must be defined for the Ant task. An example is given below:
+         </para>
+         <para>
+            <example>
+               <title>Defining the xdoclet classpath and Ant task.</title>
+               <programlisting><![CDATA[
+<path id="xdoclet">
+   <pathelement location="${lib.dir}/xjavadoc.jar"/>
+   <pathelement location="${lib.dir}/xdoclet.jar"/>
+   <pathelement location="${lib.dir}/xdoclet-jmx-module.jar"/>
+   <pathelement location="${lib.dir}/xdoclet-mx4j-module.jar"/>
+   <pathelement location="${lib}/log4j.jar"/>
+   <pathelement location="${ANT_HOME}/lib/ant.jar"/>
+   <pathelement location="${build}"/>
+</path>
+<taskdef name="jmxdoclet" classname="xdoclet.jmx.JMXDocletTask">
+   <classpath refid="xdoclet"/>
+</taskdef>
+      ]]></programlisting>
+            </example>
+         </para>
+         <para>
+            Let's suppose now that the Ant compilation target is called
+            <property>compilation</property>. The easiest way to generate
+            the source code of the MBean interface and description is to make the
+            <property>compilation</property> depending on the
+            target
+            <property>generateJMX</property> defined by:
+         </para>
+         <para>
+            <example>
+               <title/>
+               <programlisting><![CDATA[
+<target name="generate-jmx" depends="init">
+   <!-- Generate the MBean interfaces and descriptions -->
+   <jmxdoclet sourcepath="${src}" destdir="${src}" classpathref="xdoclet" force="yes">
+      <fileset dir="${src}">
+         <include name="com/xtremejava/webos/**" />
+      </fileset>
+      <!-- Create the {0}MBean interface for the MBean -->
+      <mbeaninterface/>
+      <!-- Create the MX4J specific description adaptor class for the MBean -->
+      <mx4jdescription />
+      <!-- Generate the mlet file -->
+      <mlet destinationFile="mbeans.mlet" destdir="conf"/>
+   </jmxdoclet>
+</target>
+      ]]></programlisting>
+            </example>
+         </para>
+      </section>
+      <section>
+         <title>Basic usage</title>
+         <para>
+            A few javadoc tags can be used in order to specify how to generate the interface and the description of your MBean.
+            <table>
+               <title>List of Javadoc tags</title>
+               <tgroup cols="2">
+                  <thead>
+                     <row>
+                        <entry>Javadoc Tag Name</entry>
+                        <entry>Meaning</entry>
+                     </row>
+                  </thead>
+                  <tbody>
+                     <row>
+                        <entry>@jmx:mbean</entry>
+                        <entry>Tag used in order to define the name of the MBean and its description. Must be defined at class level.</entry>
+                     </row>
+                     <row>
+                        <entry>@jmx:managed-constructor</entry>
+                        <entry>Tag used in order to define the name of the constructor and its description. Must be defined at constructor level.</entry>
+                     </row>
+                     <row>
+                        <entry>@jmx:managed-constructor-parameter</entry>
+                        <entry>Tag used in order to define the name of a constructor attribute, it's index, and its description. Must be defined at constructor level.</entry>
+                     </row>
+                     <row>
+                        <entry>@jmx:managed-operation</entry>
+                        <entry>Tag used in order to define the name of an operation and its description. Must be defined at method level.</entry>
+                     </row>
+                     <row>
+                        <entry>@jmx:managed-operation-parameter</entry>
+                        <entry>Tag used in order to define the name of an operation attribute, it's index, and its description. Must be defined at method level.</entry>
+                     </row>
+                     <row>
+                        <entry>@jmx:managed-attribute</entry>
+                        <entry>
+                           Tag used in order to define the description of an attribute. Must be defined at method level. Note: the getter description has
+                           priority over the setter description.
+                        </entry>
+                     </row>
+                     <row>
+                        <entry>@jmx:mlet-entry</entry>
+                        <entry>Tag used in order to generate the mlets file. All classes having this tags will have the result merge in one file. Must be defined at class level.</entry>
+                     </row>
+                  </tbody>
+               </tgroup>
+            </table>
+         </para>
+      </section>
+   </section>
+   <section>
+      <title>FilePersister example</title>
+      <section>
+         <title>Introduction</title>
+         <para>
+            This example will cover the usage of the FilePersister with MLets. It will give a good overview of how to use MLets into the bargain :-).
+            What we will do is create two MBeans the one extends FilePersister, so that it can load and store Objects. The other is a standard MBean which will ask the FilePersisterMBean to store it, The interesting thing about this example is that the two mbeans are loaded by two differnet MLets from two different jar files. One note of importance any object to be stored must implement the interface Serializable. Let us begin.
+         </para>
+      </section>
+      <section>
+         <title>Writing the code</title>
+         <para>
+            We are going to write an MBean which extends FilePersister and pass any calls made to it to its parent class.
+         </para>
+         <example>
+            <title>MBeanOne implementation</title>
+            <programlisting><![CDATA[
+public class MBeanOne extends FilePersister implements Serializable
+{
+   public MBeanOne(String location, String name) throws MBeanException
+       {
+      super(location, name);
+       }
+
+   public void store(Object mbean)throws MBeanException, InstanceNotFoundException
+   {
+      store(mbean);
+   }
+
+   public Object load()throws MBeanException, RuntimeOperationsException, InstanceNotFoundException
+   {
+      return load();
+   }
+}
+            ]]></programlisting>
+         </example>
+         <para>
+            Now to do the mbean that will ask the MBeanOne to store it.
+         </para>
+         <example>
+            <title>MBeanTwo implementation</title>
+            <programlisting><![CDATA[
+public class MBeanTwo implements MBeanTwoMBean, Serializable
+{
+   // constructor... see example
+   //we are now going to invoke MBeanOne through the MBeanServer
+   public void storeIt(MBeanServer server, ObjectName name)
+   {
+      server.invoke(name, "store", new Object[]{this}, new String[]{"java.lang.Object"});
+   }
+
+   public Object loadIt(MBeanServer server, ObjectName name)
+   {
+      Object me = null;
+      try
+      {
+         me = (MBeanTwo)server.invoke(name, "load", new Object[0], new String[0]);
+      }
+      catch (Exception ex)
+      {
+         ex.printStackTrace();
+      }
+      return me;
+   }
+}
+            ]]></programlisting>
+         </example>
+      </section>
+      <section>
+         <title>The Agent MLet implementation</title>
+         <para>
+            The "main" class will now create and register two MLets, each MLet will load its own MBean from separate jar files
+         </para>
+         <example>
+            <title>The FilePersisterAgent</title>
+            <programlisting><![CDATA[
+// Create the MBeanServer
+// Build the ObjectNames for the MLets
+// Register the MLets
+MLet mlet1 = new MLet();
+m_server.registerMBean(mlet1, mName1);
+mlet1.addURL(jarOneUrl);
+
+MLet mlet2 = new MLet();
+m_server.registerMBean(mlet2, mName2);
+mlet2.addURL(jarTwoUrl);
+
+// We now have access to the MBeans, so instantiate them
+m_server.createMBean(mbeanClassName, mbeanObjectName, mLetObjectName, params, signature);
+
+// As above but the other mbean is now registered using the othe MLet object name as the third parameter
+m_server.createMBean(.....);
+
+// Now invoke the storage of one MBean by the other
+m_server.invoke(mbeanName2, "storeIt", new Object[] {m_server, mbeanName1},
+             new String[]{"javax.management.MBeanServer", "javax.management.ObjectName"});
+
+// Now load it
+Object a = m_server.invoke(mbeanName2, "loadIt", new Object[] {m_server, mbeanName1},
+           new String[]{"javax.management.MBeanServer", "javax.management.ObjectName"});
+
+// And finally a test to see that the objects are equal
+if(a.getClass().getName() == mbeanClass2) System.out.println("Objects are equal and the same");
+            ]]></programlisting>
+         </example>
+      </section>
+      <section>
+         <title>Steps for Running the Example</title>
+         <para>
+            Once you have the files and compiled them you will need to build the jars holding the mbeans start a command prompt (windows) cd to the examples/classes directory and type in the following commands:
+         </para>
+         <example>
+            <programlisting><![CDATA[
+jar cvf one.jar examples/tools/persister/MBeanOne.class
+// and then
+jar cvf two.jar examples/tools/persister/MBeanTwo.class examples/tools/persister/MBeanTwoMBean.class
+            ]]></programlisting>
+         </example>
+         <para>
+            Now delete the MBeanOne.class and MBeanTwo.class (we do not want them in the classpath :-). Once this is done add four application parameters
+            <itemizedlist>
+               <listitem>1) path to jar one.jar eg:file:C:/dev/mx4j/one.jar</listitem>
+               <listitem>2) path to jar two.jar eg: file:C:/dev/two.jar</listitem>
+               <listitem>3) path where to store the file eg: C:/temp</listitem>
+               <listitem>4) name of the file eg: test.ser</listitem>
+            </itemizedlist>
+         </para>
+         <para>
+            You are now ready to start the agent!
+            Have fun !!
+         </para>
+      </section>
+   </section>
+</section>

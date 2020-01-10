@@ -1,0 +1,2 @@
+mx4j.remote.provider.iiop.ServerProvider
+mx4j.remote.provider.rmi.ServerProvider

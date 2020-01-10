@@ -1,0 +1,694 @@
+<section>
+   <title>
+      <classname>javax.management.ObjectName</classname> changes
+   </title>
+   <section>
+      <title>The
+         <classname>getInstance()</classname> methods
+      </title>
+      <para>
+         JMX 1.2 introduced four overloaded static version of the
+         <classname>getInstance()</classname> method:
+         <sbr/>
+         <sbr/>
+         <funcdef>
+            <function>public static ObjectName getInstance(String name)</function>
+         </funcdef>
+         <sbr/>
+         <funcdef>
+            <function>public static ObjectName getInstance(ObjectName name)</function>
+         </funcdef>
+         <sbr/>
+         <funcdef>
+            <function>public static ObjectName getInstance(String name, Hashtable properties)</function>
+         </funcdef>
+         <sbr/>
+         <funcdef>
+            <function>public static ObjectName getInstance(String domain, String key, String value)</function>
+         </funcdef>
+      </para>
+      <para>
+         The first version is the preferred way to create ObjectNames, and should be used instead of using the
+         <emphasis>new</emphasis> Java keyword.
+         <sbr/>
+         Creating a new ObjectName from a string is expensive because require parsing of the string.
+         <sbr/>
+         JMX implementations may use caching techniques to speed up creation of ObjectNames from strings.
+         MX4J does this optimization both in this method and in the ObjectName's constructor; it is likely that other
+         implementations perform the optimization in getInstance(), but not in the ObjectName's constructor, so choosing
+         to use getInstance() ensure coherent behaviors.
+      </para>
+      <para>
+         The second version is mostly used to convert ObjectName subclasses to plain ObjectName.
+         <sbr/>
+         This is useful in a secure environment where evil ObjectName subclasses can try to bypass security checks
+         done when
+         <classname>javax.management.MBeanPermission</classname>s are checked to see if access to
+         the MBean with the given ObjectName is allowed or not.
+      </para>
+      <para>
+         The third and the fourth version are just a replacement for the usage of the
+         <emphasis>new</emphasis> Java keyword,
+         and offer mostly syntactic sugar to your code.
+      </para>
+   </section>
+   <section>
+      <title>The
+         <classname>quote()</classname> and
+         <classname>unquote()</classname> methods
+      </title>
+      <para>
+         JMX 1.2 introduced a way to "quote" the value of ObjectName's properties that is, to allow special
+         characters to be present in the properties values of an ObjectName.
+      </para>
+      <para>
+         A simple example of this feature is to specify an LDAP name as an ObjectName property value.
+         <sbr/>
+         Since the comma is a reserved character that separates ObjectName properties, it would have been
+         impossible to specify an LDAP name as an ObjectName property.
+      </para>
+      <para>
+         Let's suppose to have a distinguished name of 'uid=guest,ou=project,o=company', and to build an
+         ObjectName with a property called 'dname' whose value is the distinguished name.
+         <sbr/>
+         Without quoting, the ObjectName is:
+      </para>
+      <para>:dname=uid=guest,ou=project,o=company</para>
+      <para>
+         which leads to an invalid ObjectName.
+      </para>
+      <para>
+         Using quoting, instead, it becomes:
+      </para>
+      <para>:dname="uid=guest,ou=project,o=company"</para>
+      <para>
+         which leads to a valid ObjectName.
+      </para>
+      <para>
+         It is possible also to "unquote" the property value to obtain the original string.
+      </para>
+      <para>
+         The ObjectName class has no knowledge if a value should be quoted or not, so it is responsibility
+         of the developer to quote and unquote property values.
+         <sbr/>
+         It is a good practice to do so in those cases where the property value is chosen by users, for example
+         by inputting it in a web form or in a swing gui.
+      </para>
+      <para>Refer to the javadoc of the ObjectName class for further information.</para>
+   </section>
+</section>
+<section>
+   <title>Support for remote API</title>
+   <section>
+      <title>Overview</title>
+      <para>
+         JMX 1.2 defined all changes to the JMX specification needed to support remote API.
+         <sbr/>
+         Imagine a situation where a client needs to contact a remote MBeanServer, to invoke operations on it and
+         to receive the result of such invocations.
+         <sbr/>
+         In order for this situation to be possible, the JMX specification needed several changes such as
+         specifying the serialVersionUID of serializable classes that can be exchanged between the client and
+         the remote MBeanServer (for example
+         <classname>javax.management.MBeanInfo</classname>), specifying
+         details of MBeanServer's classloading to support classloading from remote locations, and the possibility
+         for the client to invoke operations on an MBeanServer-like interface that supports remote invocation
+         (for example that throws IOException if the connection with the remote MBeanServer is broken).
+      </para>
+   </section>
+   <section>
+      <title>The
+         <classname>javax.management.MBeanServer</classname> class inherits from
+         <classname>javax.management.MBeanServerConnection</classname>
+      </title>
+      <para>
+         The MBeanServer interface cannot be used directly by clients that need to contact a remote MBeanServer.
+         <sbr/>
+         The reason is that this interface does not list, in its method's throws clause,
+         <classname>java.io.IOException</classname> as a possible exception being thrown.
+         Furthermore, the MBeanServer interface has some method (like registerMBean(), deserialize(),
+         getClassLoader(), etc.) that have no meaning in the remote case.
+      </para>
+      <para>
+         The
+         <classname>javax.management.MBeanServerConnection</classname> interface has been defined as the
+         portion of the MBeanServer interface that can be used by client to contact a remote MBeanServer, and
+         is MBeanServer's parent interface.
+         <sbr/>
+      </para>
+   </section>
+</section>
+<section>
+   <title>The
+      <classname>javax.management.MBeanServerBuilder</classname> class
+   </title>
+   <section>
+      <title>Introduction</title>
+      <para>
+         JMX 1.2 introduced the possibility to replace, at runtime, the MBeanServer implementation by specifying
+         a full qualified name of a
+         <classname>javax.management.MBeanServerBuilder</classname> subclass with the
+         system property "javax.management.builder.initial".
+         <sbr/>
+         When creating a new
+         <classname>MBeanServer</classname> instance, the
+         <classname>MBeanServerFactory</classname>
+         checks (every time) for the value of that system property; if it is not null, loads (using the context classloader),
+         instantiates, and delegates the
+         <classname>MBeanServerBuilder</classname> subclass to create
+         <classname>MBeanServer</classname> instances.
+      </para>
+      <para>
+         Since now the creation of
+         <classname>MBeanServer</classname> instances can be delegated to a custom
+         <classname>MBeanServerBuilder</classname>, it is possible to achieve two things:
+         <itemizedlist>
+            <listitem>Use Sun's JMX reference implementation (JMXRI) but telling it to use MX4J's
+               <classname>MBeanServer</classname> implementation
+            </listitem>
+            <listitem>"Wrap" the
+               <classname>MBeanServer</classname> implementation and "decorate" it with added functionality.
+            </listitem>
+         </itemizedlist>
+      </para>
+   </section>
+   <section>
+      <title>How to use MX4J's
+         <classname>MBeanServer</classname> implementation with Sun's JMX Reference Implementation.
+      </title>
+      <para>
+         This is very simple to achieve:
+      </para>
+      <para>
+         <example>
+            <programlisting>
+               <![CDATA[
+java -cp jmxri.jar;mx4j-impl.jar -Djavax.management.builder.initial=mx4j.server.MX4JMBeanServerBuilder <MyClass>
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Note how the classpath specifies
+         <emphasis>first</emphasis> the JMXRI jar and
+         <emphasis>then</emphasis> the MX4J
+         implementation jar.
+      </para>
+   </section>
+   <section>
+      <title>How to "decorate"
+         <classname>MBeanServer</classname> methods.
+      </title>
+      <para>
+         A custom
+         <classname>MBeanServerBuilder</classname> allows you to specify how to create an
+         <classname>MBeanServer</classname>.
+         <sbr/>
+         Any JMX implementation has already in place a mechanism that uses a default
+         <classname>MBeanServerBuilder</classname>
+         to create instances of the default
+         <classname>MBeanServer</classname> implementation.
+         <sbr/>
+         In order to be able to "decorate" an
+         <classname>MBeanServer</classname> it is sufficient to specify a custom
+         <classname>MBeanServerBuilder</classname> that "decorates" the default one; then the implementation of the custom
+         <classname>MBeanServerBuilder</classname> will "decorate" the default
+         <classname>MBeanServer</classname>.
+      </para>
+      <para>
+         However, implementing a "decorating"
+         <classname>MBeanServerBuilder</classname> requires a bit of precision.
+         <sbr/>
+         We will explain how to do this in detail in the following, using as example the MX4J implementation.
+      </para>
+      <para>
+         Using the
+         <classname>MBeanServerBuilder</classname> to "decorate" an
+         <classname>MBeanServer</classname>
+         requires to write two classes:
+         <itemizedlist>
+            <listitem>a custom
+               <classname>MBeanServerBuilder</classname>
+            </listitem>
+            <listitem>a decorating
+               <classname>MBeanServer</classname>
+            </listitem>
+         </itemizedlist>
+         <sbr/>
+         Although it's possible to start from scratch, the MX4J API gives you two base classes to start from:
+         <itemizedlist>
+            <listitem>
+               <classname>mx4j.server.ChainedMBeanServerBuilder</classname>
+            </listitem>
+            <listitem>
+               <classname>mx4j.server.ChainedMBeanServer</classname>
+            </listitem>
+         </itemizedlist>
+      </para>
+      <para>
+         Let's suppose we want to decorate the default
+         <classname>MBeanServer</classname> by adding logging statements
+         whenever a
+         <classname>MBeanServer</classname> method is called.
+         <sbr/>
+         First, we write the "decorating"
+         <classname>MBeanServer</classname>:
+      </para>
+      <para>
+         <example>
+            <title>A "decorating"
+               <classname>MBeanServer</classname> that logs method calls.
+            </title>
+            <programlisting>
+               <![CDATA[
+public class LoggingMBeanServer extends ChainedMBeanServer
+{
+   // Overridden just to make it public
+   public void setMBeanServer(MBeanServer server)
+   {
+      super.setMBeanServer(server);
+   }
+
+   public Object getAttribute(ObjectName objectName, String attribute)
+      throws MBeanException, AttributeNotFoundException, InstanceNotFoundException, ReflectionException
+   {
+      Object value = super.getAttribute(objectName, attribute);
+      System.out.println("[LOGGER] getAttribute() returned: " + value);
+      return value;
+   }
+
+   // And so on for all other MBeanServer methods.
+}
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         The class
+         <classname>ChainedMBeanServer</classname> simply forwards the calls to a nested
+         <classname>MBeanServer</classname>.
+         <classname>ChainedMBeanServer</classname> thus allows to create a "chain" of
+         <classname>MBeanServer</classname>s
+         that are called in succession, one after the other, from the outermost to the innermost.
+      </para>
+      <para>
+         Second, we write the "decorating"
+         <classname>MBeanServerBuilder</classname>:
+      </para>
+      <para>
+         <example>
+            <title>A "decorating"
+               <classname>MBeanServerBuilder</classname>
+            </title>
+            <programlisting>
+               <![CDATA[
+public class LoggingBuilder extends ChainedMBeanServerBuilder
+{
+   public LoggingBuilder()
+   {
+      super(new mx4j.server.MX4JMBeanServerBuilder());
+   }
+
+   public MBeanServer newMBeanServer(String defaultDomain, MBeanServer outer, MBeanServerDelegate delegate)
+   {
+      LoggingMBeanServer extern = new LoggingMBeanServer();
+      MBeanServer nested = getMBeanServerBuilder().newMBeanServer(defaultDomain, outer == null ? extern : outer, delegate);
+      extern.setMBeanServer(nested);
+      return extern;
+   }
+}
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         As for the
+         <classname>ChainedMBeanServer</classname> class, also
+         <classname>ChainedMBeanServerBuilder</classname>
+         simply forwards the calls to a nested
+         <classname>MBeanServerBuilder</classname>.
+         Also here,
+         <classname>ChainedMBeanServerBuilder</classname> allows to create a "chain" of
+         <classname>MBeanServerBuilder</classname>s
+         that are called in succession, one after the other, from the outermost to the innermost.
+      </para>
+      <para>
+         The
+         <classname>MBeanServerBuilder</classname> chain works in parallel with the
+         <classname>MBeanServer</classname>
+         chain in this way:
+      </para>
+      <para>
+         <example>
+            <title>The
+               <classname>MBeanServerBuilder</classname> and
+               <classname>MBeanServer</classname> chains
+            </title>
+            <programlisting>
+               <![CDATA[
+MBeanServerFactory  -- calls -->   LoggingBuilder     -- calls -->  MX4JMBeanServerBuilder
+                                         |                                   |
+                                      creates                             creates
+                                         |                                   |
+                                         V                                   V
+       Application  -- calls -->  LoggingMBeanServer  -- calls -->     MX4JMBeanServer
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Note the
+         <classname>LoggingBuilder</classname> constructor: there is where the
+         <classname>MBeanServerBuilder</classname> chain is created.
+         <sbr/>
+         The
+         <classname>LoggingBuilder</classname> specifies a chain of only two rings, the
+         <classname>LoggingBuilder</classname>
+         itself, and MX4J's default
+         <classname>MBeanServerBuilder</classname>,
+         <classname>MX4JMBeanServerBuilder</classname>.
+         <sbr/>
+         This chain is hardcoded in the builder, meaning that if you want to change it at runtime you cannot: either you
+         change and recompile the custom builder, or you use another custom builder.
+      </para>
+      <para>
+         Note also the usage of the ternary operator (condition ? this : that) in the nested
+         <funcdef>
+            <function>newMBeanServer()</function>
+         </funcdef> call: checking for nullity of the "outer" argument is
+         of fundamental importance for the builder to be "chainable". If this check is not made, then
+         <classname>LoggingBuilder</classname> cannot be reused as a ring of a longer chain if, in future, we modify it
+         to accept as parameter to the constructor other builders (i.e. other "rings").
+      </para>
+      <para>
+         It is of course possible to use different builders from different vendors, simply by creating a custom builder
+         that "chains" all the other in the desired sequence:
+      </para>
+      <para>
+         <example>
+            <title>A "decorating"
+               <classname>MBeanServerBuilder</classname>
+            </title>
+            <programlisting>
+               <![CDATA[
+public class ComplexBuilder extends ChainedMBeanServerBuilder
+{
+   public LoggingBuilder()
+   {
+      super(new com.sun.jmx.bar.BarBuilder(new com.ibm.jmx.foo.FooBuilder(new mx4j.server.MX4JMBeanServerBuilder())));
+   }
+}
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Just remember that
+         <classname>MX4JMBeanServerBuilder</classname> is a "terminal" builder and must
+         always be the last in the chain.
+         <sbr/>
+         Other vendors are expected to provide an API for their custom builders very similar to
+         <classname>ChainedMBeanServerBuilder</classname> (which is mostly being able to take a
+         <classname>javax.management.MBeanServerBuilder</classname> as argument to a constructor).
+      </para>
+   </section>
+   <section>
+      <title>More complex
+         <classname>MBeanServer</classname> "decorations".
+      </title>
+      <para>
+         We saw above that is possible to "decorate"
+         <classname>MBeanServer</classname>s by decorating the
+         default mechanism of the
+         <classname>MBeanServerBuilder</classname> already in place in any JMX implementation.
+         <sbr/>
+         We saw that to a chain of builders corresponded a chain of servers.
+         <sbr/>
+         However, it's possible that a builder specifies more than one ring for the server chain, in the following way:
+      </para>
+      <para>
+         <example>
+            <title>A More complex
+               <classname>MBeanServerBuilder</classname> and
+               <classname>MBeanServer</classname> chains
+            </title>
+            <programlisting>
+               <![CDATA[
+MBeanServerFactory --calls-->  LoggingBuilder    --calls-->          PerformanceBuilder    --calls-->    MX4JMBeanServerBuilder
+                                     |                                        |                                     |
+                                  creates                                  creates                               creates
+                                     |                                   /         \                                |
+                                     V                                  V           V                               V
+       Application --calls--> LoggingMBeanServer --calls--> TimingServer --calls--> CountingServer --calls--> MX4JMBeanServer
+            ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         An example of such chains is present in the MX4J testsuite, in the test class that tests the
+         <classname>MBeanServerBuilder</classname> functionality.
+      </para>
+   </section>
+   <section>
+      <title>Possible usages of MBeanServer "decorators"</title>
+      <para>
+         A (non complete) list of possible "decorators" for
+         <classname>MBeanServer</classname>
+         may include functionality such as:
+         <itemizedlist>
+            <listitem>Logging the invocation</listitem>
+            <listitem>Measuring the invocation time</listitem>
+            <listitem>Counting the number of invocations</listitem>
+            <listitem>Load-balancing the invocations among server nodes</listitem>
+            <listitem>Cascading the invocations to child servers</listitem>
+            <listitem>Notifying a message to someone for a particular invocation</listitem>
+            <listitem>...</listitem>
+         </itemizedlist>
+      </para>
+   </section>
+</section>
+<section>
+   <title>The
+      <classname>javax.management.MBeanServerInvocationHandler</classname> class
+   </title>
+   <section>
+      <title>Introduction</title>
+      <para>
+         MX4J version 1.x provided a custom implementation of a JDK 1.3's dynamic proxy to ease invocation
+         of methods on a MBean via the MBeanServer, the
+         <classname>mx4j.util.StandardMBeanProxy</classname> class.
+         <sbr/>
+         MX4J 1.x provided also a class for invocation of methods on remote MBeans, namely
+         <classname>mx4j.connector.RemoteStandardMBeanProxy</classname>
+         based on MX4J's custom remote implementation.
+         <sbr/>
+         In MX4J 1.x these classes were separated since JMX 1.1 did not specify a super-interface for MBeanServer
+         that could be used also remotely.
+      </para>
+      <para>
+         In JMX 1.2, the
+         <classname>javax.management.MBeanServer</classname> interface inherits from the
+         <classname>javax.management.MBeanServerConnection</classname> interface.
+         <sbr/>
+         The MBeanServerConnection interface has basically the same methods of MBeanServer except those that
+         does not have sense remotely (like deserialize() and registerMBean()), and adds
+         <classname>java.io.IOException</classname> in the throws clause
+         of each method, thus making it the "remote" view of a remote MBeanServer.
+      </para>
+      <para>
+         As of JMX 1.2, both
+         <classname>mx4j.util.StandardMBeanProxy</classname> and
+         <classname>mx4j.connector.RemoteStandardMBeanProxy</classname> are obsolete since they have been
+         replaced by one single class, the standard
+         <classname>javax.management.MBeanServerInvocationHandler</classname> class, that takes advantage of
+         the improved class hierarchy of the
+         <classname>javax.management.MBeanServer</classname> interface
+         to unify the functionalities that were provided before by the two MX4J classes.
+      </para>
+      <para>
+         In the following section will be explained how to port old MX4J 1.x code to the new JMX 1.2 code.
+      </para>
+   </section>
+   <section>
+      <title>MBeanServerInvocationHandler usage</title>
+      <para>
+         The JMX API to call an MBean via MBeanServer is very tedious: involves a reflection-like syntax and
+         a complex exception handling.
+         <sbr/>
+         The reflection-like syntax is sometimes an advantage, but it suffers of lack of static type checkings
+         made by the compiler.
+         <sbr/>
+         The exception handling is complex since it involves unwrapping of
+         <classname>javax.management.MBeanException</classname>s and rethrowing of the original exception thrown
+         by the MBean method, very much like
+         <classname>java.lang.reflect.InvocationTargetException</classname>
+         requires.
+      </para>
+      <para>
+         Fortunately, JDK 1.3 provides
+         <emphasis>dynamic proxies</emphasis> via the
+         <classname>java.lang.reflect.Proxy</classname> class.
+         <sbr/>
+         By means of dynamic proxies, is it possible to write a proxy that hides the complexity of JMX
+         invocations and provides static type checking and trasparent exception handling.
+         <sbr/>
+         Compare the two code examples below and note how the second example is cleaner.
+      </para>
+      <para>
+         <example>
+            <title>Standard JMX invocation</title>
+            <programlisting>
+               <![CDATA[
+// The ObjectName of the delegate MBean
+ObjectName delegateName = ObjectName.getInstance("JMImplementation:type=delegate");
+
+MBeanServer server = ...;
+
+// The MBeanServer ID
+String id = null;
+try
+{
+   id = server.getAttribute(delegateName, "MBeanServerId");
+}
+catch (MBeanException x)
+{
+   // The getMBeanServerId() method threw an exception ?!?
+}
+catch(AttributeNotFoundException x)
+{
+   // Uh ? Not a compliant JMX implementation ?
+}
+catch (InstanceNotFoundException x)
+{
+   // Uh ? Not a compliant JMX implementation ?
+}
+catch (ReflectionException x)
+{
+  // Uh ? What happened here ?
+}
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         <example>
+            <title>JMX invocation with MBeanServerInvocationHandler</title>
+            <programlisting>
+               <![CDATA[
+// The ObjectName of the delegate MBean
+ObjectName delegateName = ObjectName.getInstance("JMImplementation:type=delegate");
+
+MBeanServer server = ...;
+
+Object proxy = MBeanServerInvocationHandler.newProxyInstance(server, delegateName, MBeanServerDelegateMBean.class, true);
+MBeanServerDelegateMBean delegateMBean = (MBeanServerDelegateMBean)proxy;
+
+// The MBeanServer ID
+String id = delegateMBean.getMBeanServerId();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Usage of the
+         <classname>javax.management.MBeanServerInvocationHandler</classname> class is straightforward
+         for standard MBeans, since they already comply a management interface that is also a Java interface.
+         This interface can be used directly
+         as argument for the creation of the proxy (the third parameter of the
+         MBeanServerInvocationHandler.newProxyInstance() call).
+         <sbr/>
+         However, usage of MBeanServerInvocationHandler is not limited to standard MBeans, but also to dynamic MBeans
+         can use it, provided that the management interface they comply to does not change during proxy's life.
+         It is not necessary that the dynamic MBean implements a Java interface: it is
+         enough that the Java interface provided to the MBeanServerInvocationHandler is a (sub)set of the
+         management interface exposed by the dynamic MBean.
+      </para>
+      <para>
+         The MBeanServerInvocationHandler class can also be used for remote MBeans, in conjuction with the
+         JSR 160 API, like shown in the following code snippet:
+      </para>
+      <para>
+         <example>
+            <title>Remote JMX invocation with MBeanServerInvocationHandler</title>
+            <programlisting>
+               <![CDATA[
+// The address of the connector server
+JMXServiceURL address = ...;
+
+// Create the JMXCconnectorServer
+JMXConnector cntor = JMXConnectorFactory.connect(address);
+
+// Obtain a "stub" for the remote MBeanServer
+MBeanServerConnection mbsc = cntor.getMBeanServerConnection();
+
+// The ObjectName of a remote delegate MBean
+ObjectName delegateName = ObjectName.getInstance("JMImplementation:type=delegate");
+
+Object proxy = MBeanServerInvocationHandler.newProxyInstance(mbsc, delegateName, MBeanServerDelegateMBean.class, true);
+MBeanServerDelegateMBean delegateMBean = (MBeanServerDelegateMBean)proxy;
+
+// The MBeanServer ID
+String id = delegateMBean.getMBeanServerId();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         Refer to the javadocs of the
+         <classname>javax.management.MBeanServerInvocationHandler</classname> class
+         for further details.
+      </para>
+   </section>
+   <section>
+      <title>Porting examples for
+         <classname>mx4j.util.StandardMBeanProxy</classname>
+      </title>
+      <para>
+         The MX4J 1.x API of
+         <classname>mx4j.util.StandardMBeanProxy</classname> is very similar to
+         <classname>javax.management.MBeanServerInvocationHandler</classname>'s.
+         <sbr/>
+         Below are shown two code snippets that compare the old MX4J 1.x API with the new standard one.
+         <sbr/>
+         Note how only the line marked with (*) changes from the old version to the new one.
+      </para>
+      <para>
+         <example>
+            <title>Old MX4J 1.x proxy API</title>
+            <programlisting>
+               <![CDATA[
+// The ObjectName of the delegate MBean
+ObjectName delegateName = ObjectName.getInstance("JMImplementation:type=delegate");
+
+MBeanServer server = ...;
+
+Object proxy = StandardMBeanProxy.create(MBeanServerDelegateMBean.class, server, delegateName);  (*)
+MBeanServerDelegateMBean delegateMBean = (MBeanServerDelegateMBean)proxy;
+
+// The MBeanServer ID
+String id = delegateMBean.getMBeanServerId();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+      <para>
+         <example>
+            <title>Standard JMX 1.2 proxy API</title>
+            <programlisting>
+               <![CDATA[
+// The ObjectName of the delegate MBean
+ObjectName delegateName = ObjectName.getInstance("JMImplementation:type=delegate");
+
+MBeanServer server = ...;
+
+Object proxy = MBeanServerInvocationHandler.newProxyInstance(server, delegateName, MBeanServerDelegateMBean.class, true);
+MBeanServerDelegateMBean delegateMBean = (MBeanServerDelegateMBean)proxy;
+
+// The MBeanServer ID
+String id = delegateMBean.getMBeanServerId();
+               ]]>
+            </programlisting>
+         </example>
+      </para>
+   </section>
+</section>
